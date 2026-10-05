@@ -10,7 +10,7 @@ flowchart LR
     Mic["Microphone"] --> ML["MicrophoneLoudness<br/>(RMS → dB → 0..1)"]
     ML -- "IVoiceLevelSource.Level01" --> EV["EchoVisionController<br/>(level → radius)"]
     EV -- "Shader.SetGlobal*<br/>_EchoOrigin / _EchoRadius / _EchoFalloff" --> SH["EchoReveal shader<br/>(sphere mask)"]
-    ML -- "State: Whisper / Talk / Scream" --> AI["Enemy AI (planned)"]
+    ML -- "IVoiceLevelSource" --> VNE["VoiceNoiseEmitter"] --> HS["HearingSensor"] --> AI["EnemyBrain<br/>(Idle/Investigate/Hunt)"]
     PC["PlayerController"] -. "position" .-> EV
 ```
 
@@ -47,6 +47,10 @@ Textures are projected in **world space** (triplanar-lite), so scaled primitives
 | `CharacterController` | Rigidbody controller | Stable and simple. For ragdolls, the controller is disabled and rigidbodies take over. |
 | `AnimationCurve` for loudness → radius | Hard-coded formula | Faster iteration on game feel. |
 | Editor builder for the sandbox scene | Hand-built scene | Reproducible: anyone can regenerate the test scene from code. |
+| `INoiseSource` + `NoiseRegistry` | Enemies search the scene for players | Enemies depend on an abstraction, so footsteps, physics impacts or networked voice become audible with zero AI changes. A registry avoids `Find*` calls every frame. See [Enemy AI](ENEMY_AI.md). |
+| `HearingSensor` separate from `EnemyBrain` | One big enemy script | Perception (what was heard) and decision (what to do) can be tuned, tested and replaced independently. |
+| Enum + `switch` state machine | State pattern classes / behaviour tree | Three states do not justify the boilerplate; extracting a state class later is a mechanical refactor. |
+| Runtime `NavMeshBootstrap` fallback | Trust the baked NavMesh | An enemy standing on missing ground fails silently; the fallback makes the scene self-healing. |
 
 ## Planned Multiplayer Model (Fish-Net)
 

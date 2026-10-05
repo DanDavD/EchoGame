@@ -14,3 +14,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `EchoReveal` URP shader: world-space textured geometry revealed inside the echo sphere with a glowing edge ring.
 - `EchoSandboxBuilder` editor tool and `Sandbox_Test` scene for testing the core mechanic.
 - Documentation: README, architecture overview, pull request template.
+- Enemy AI (blind hunters with perfect hearing):
+  - `INoiseSource` / `NoiseRegistry` / `VoiceNoiseEmitter`: any noise can be heard; the player's voice is the first emitter.
+  - `HearingSensor`: distance-attenuated perceived loudness, last heard position and suspicion for constant noise.
+  - `EnemyBrain`: Idle / Investigate / Hunt state machine on a `NavMeshAgent`, with `OnStateChanged` and `OnPlayerCaught` events.
+  - `NavMeshBootstrap`: runtime fallback that builds the NavMesh if it is missing.
+- Sandbox builder now bakes a NavMesh, adds a red `Enemy_Blind` (visible only inside echo light) and gives the player a `VoiceNoiseEmitter`.
+- Documentation: `docs/ENEMY_AI.md` (hearing model, state diagram, tuning guide).

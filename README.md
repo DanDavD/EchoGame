@@ -32,9 +32,10 @@ This is an active prototype built solo under a tight deadline. Progress is track
 - Microphone capture → RMS → calibrated 0–1 loudness, with attack/release smoothing and Silent/Whisper/Talk/Scream states.
 - "Clunky on purpose" first-person controller (new Input System).
 - Echo vision: loudness drives a sphere of light through a URP shader using global shader values.
-- One-click sandbox scene builder (editor tool).
+- Blind enemy AI: sound-driven hearing sensor with Idle / Investigate / Hunt finite state machine on NavMesh.
+- One-click sandbox scene builder (editor tool) with baked NavMesh and test arena.
 
-**Planned:** PS1-style post-processing, enemy AI (Idle/Investigate/Hunt), ragdolls, Fish-Net multiplayer, proximity voice chat. See the [roadmap](#roadmap).
+**Planned:** PS1-style post-processing, ragdolls, Fish-Net multiplayer, proximity voice chat. See the [roadmap](#roadmap).
 
 ## Tech Stack
 
@@ -70,7 +71,7 @@ Assets/
 │   ├── Audio/         # Microphone capture and loudness analysis
 │   ├── Player/        # First-person controller
 │   ├── Echo/          # Loudness → light sphere (shader bridge)
-│   ├── Enemies/       # (planned) Hearing + state machine AI
+│   ├── Enemies/       # Hearing sensor + state machine AI (Idle/Investigate/Hunt)
 │   ├── Ragdoll/       # (planned) Animation ⇄ ragdoll switching
 │   ├── Interaction/   # (planned) Grabbables, traps
 │   ├── Networking/    # (planned) Fish-Net-only code
@@ -83,6 +84,7 @@ Assets/
 ## Documentation
 
 - 📐 [Architecture & design decisions](docs/ARCHITECTURE.md)
+- 👹 [Enemy AI: hearing model & state machine](docs/ENEMY_AI.md)
 - 🤝 [Contributing & Git workflow](CONTRIBUTING.md)
 - 📝 [Changelog](CHANGELOG.md)
 
@@ -92,8 +94,8 @@ Assets/
 - [x] Microphone loudness capture
 - [x] First-person controller
 - [x] Echo vision shader + sandbox scene
+- [x] Enemy AI: Idle → Investigate → Hunt, driven by player loudness
 - [ ] PS1 look: low-res render, film grain, vignette
-- [ ] Enemy AI: Idle → Investigate → Hunt, driven by player loudness
 - [ ] Ragdoll system
 - [ ] Multiplayer (Fish-Net): networked players, server-authoritative enemies
 - [ ] Proximity voice chat

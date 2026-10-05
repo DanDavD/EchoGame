@@ -1,7 +1,9 @@
 using System.IO;
+using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
@@ -57,6 +59,7 @@ public static class EchoSandboxBuilder
         Material floorMat = GetOrCreateMaterial("Assets/Art/Materials/Echo_Floor.mat", shader, checker, new Color(0.55f, 0.55f, 0.6f), 0.5f);
         Material wallMat = GetOrCreateMaterial("Assets/Art/Materials/Echo_Wall.mat", shader, checker, new Color(0.65f, 0.45f, 0.45f), 0.5f);
         Material propMat = GetOrCreateMaterial("Assets/Art/Materials/Echo_Prop.mat", shader, checker, new Color(0.45f, 0.65f, 0.55f), 1f);
+        Material enemyMat = GetOrCreateMaterial("Assets/Art/Materials/Echo_Enemy.mat", shader, checker, new Color(0.8f, 0.12f, 0.12f), 1f);
 
         // --- Scene --------------------------------------------------------------------------
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -67,8 +70,10 @@ public static class EchoSandboxBuilder
         RenderSettings.ambientLight = Color.black;
         RenderSettings.reflectionIntensity = 0f;
 
-        BuildArena(floorMat, wallMat, propMat);
+        Transform arena = BuildArena(floorMat, wallMat, propMat);
+        BuildNavMesh(arena.gameObject);
         BuildPlayer(actions);
+        BuildEnemy(enemyMat);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -77,7 +82,7 @@ public static class EchoSandboxBuilder
     }
 
     // ------------------------------------------------------------------------------------------
-    private static void BuildArena(Material floorMat, Material wallMat, Material propMat)
+    private static Transform BuildArena(Material floorMat, Material wallMat, Material propMat)
     {
         var root = new GameObject("Arena").transform;
 
@@ -107,6 +112,8 @@ public static class EchoSandboxBuilder
             float h = 0.4f * (i + 1);
             Box($"Step_{i}", root, new Vector3(6f, h * 0.5f, -6f - 2f * i), new Vector3(3f, h, 2f), propMat);
         }
+
+        return root;
     }
 
     private static void BuildPlayer(InputActionAsset actions)
@@ -151,6 +158,57 @@ public static class EchoSandboxBuilder
         var echoSo = new SerializedObject(echo);
         echoSo.FindProperty("_voiceSource").objectReferenceValue = mic;
         echoSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Makes the player's voice audible to enemies.
+        var emitter = player.AddComponent<VoiceNoiseEmitter>();
+        var emitterSo = new SerializedObject(emitter);
+        emitterSo.FindProperty("_voiceSource").objectReferenceValue = mic;
+        emitterSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Bakes the NavMesh from the arena geometry and saves it as an asset next to the scene.</summary>
+    private static void BuildNavMesh(GameObject arenaRoot)
+    {
+        var surface = arenaRoot.AddComponent<NavMeshSurface>();
+        surface.collectObjects = CollectObjects.Children; // only arena geometry, never player/enemy
+        surface.useGeometry = NavMeshCollectGeometry.RenderMeshes;
+        surface.BuildNavMesh();
+
+        // Runtime safety net in case the baked data is ever missing.
+        arenaRoot.AddComponent<NavMeshBootstrap>();
+
+        if (surface.navMeshData == null)
+        {
+            Debug.LogWarning("[EchoSandboxBuilder] NavMesh build produced no data. NavMeshBootstrap will build it at runtime.");
+            return;
+        }
+
+        const string dir = "Assets/Scenes/Sandbox_Test";
+        Directory.CreateDirectory(dir);
+        string path = dir + "/NavMesh-Arena.asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(surface.navMeshData, path); // persist so the scene references a real asset
+        EditorUtility.SetDirty(surface);
+    }
+
+    /// <summary>Places the blind enemy far from the player spawn, ready to hear you.</summary>
+    private static void BuildEnemy(Material enemyMat)
+    {
+        var enemy = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        enemy.name = "Enemy_Blind";
+        enemy.transform.position = new Vector3(-6f, 1f, 16f);
+        enemy.GetComponent<MeshRenderer>().sharedMaterial = enemyMat; // only visible inside echo light
+
+        // RequireComponent adds NavMeshAgent and HearingSensor automatically.
+        enemy.AddComponent<EnemyBrain>();
+
+        var agent = enemy.GetComponent<NavMeshAgent>();
+        agent.baseOffset = 1f;          // capsule pivot is its centre (height 2 / 2)
+        agent.radius = 0.5f;
+        agent.height = 2f;
+        agent.stoppingDistance = 0.5f;
+        agent.acceleration = 10f;
+        agent.angularSpeed = 240f;
     }
 
     // ------------------------------------------------------------------------------------------
