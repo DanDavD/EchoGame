@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Player Ragdoll System**: Players now turn into a physical ragdoll when caught by enemies or when stepping on a `RagdollTrap`.
+- **Enemy Gloating**: Enemies now stall for 3 seconds after catching a player.
+- **Impact Noise**: Hitting the ground in ragdoll mode generates a loud noise burst (`NoiseBurstEmitter`) that attracts enemies.
 - Project structure and coding conventions (`AGENTS.md`, `CONTRIBUTING.md`).
 - `MicrophoneLoudness`: microphone capture, RMS → dB → calibrated 0–1 level, smoothing, Silent/Whisper/Talk/Scream states, silence calibration and debug bar.
 - `IVoiceLevelSource`: abstraction for any voice-level provider (local mic now, networked or voice-chat later).

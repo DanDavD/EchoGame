@@ -48,6 +48,7 @@ public class PlayerController : MonoBehaviour
     private float _verticalVelocity;
     private Vector2 _smoothedLook;
     private float _pitch;
+    private bool _controlEnabled = true;
 
     private void Awake()
     {
@@ -87,6 +88,8 @@ public class PlayerController : MonoBehaviour
         // Escape frees the cursor in the editor; click the Game view to lock it again.
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
         else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) SetCursorLocked(true);
+
+        if (!_controlEnabled) return; // ragdolled: physics owns the body, ignore input
 
         HandleLook();
         HandleMovement();
@@ -132,6 +135,21 @@ public class PlayerController : MonoBehaviour
 
         Vector3 velocity = _horizontalVelocity + Vector3.up * _verticalVelocity;
         _controller.Move(velocity * dt);
+    }
+
+    /// <summary>
+    /// Suspends or restores player control (input, movement, look) WITHOUT disabling the component,
+    /// so the cursor stays locked. Used by the ragdoll system. Re-enabling clears leftover momentum.
+    /// </summary>
+    public void SetControlEnabled(bool enabled)
+    {
+        _controlEnabled = enabled;
+        if (enabled)
+        {
+            _horizontalVelocity = Vector3.zero;
+            _verticalVelocity = 0f;
+            _smoothedLook = Vector2.zero;
+        }
     }
 
     private static void SetCursorLocked(bool locked)

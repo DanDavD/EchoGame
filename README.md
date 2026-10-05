@@ -72,8 +72,8 @@ Assets/
 │   ├── Player/        # First-person controller
 │   ├── Echo/          # Loudness → light sphere (shader bridge)
 │   ├── Enemies/       # Hearing sensor + state machine AI (Idle/Investigate/Hunt)
-│   ├── Ragdoll/       # (planned) Animation ⇄ ragdoll switching
-│   ├── Interaction/   # (planned) Grabbables, traps
+│   ├── Ragdoll/       # Animation ⇄ ragdoll switching
+│   ├── Interaction/   # Grabbables, traps
 │   ├── Networking/    # (planned) Fish-Net-only code
 │   ├── UI/            # (planned) Menus and HUD
 │   └── Editor/        # Editor tooling (sandbox scene builder)
@@ -95,8 +95,8 @@ Assets/
 - [x] First-person controller
 - [x] Echo vision shader + sandbox scene
 - [x] Enemy AI: Idle → Investigate → Hunt, driven by player loudness
+- [x] Ragdoll system
 - [ ] PS1 look: low-res render, film grain, vignette
-- [ ] Ragdoll system
 - [ ] Multiplayer (Fish-Net): networked players, server-authoritative enemies
 - [ ] Proximity voice chat
 - [ ] Steam integration and release build
