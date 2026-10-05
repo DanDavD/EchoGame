@@ -113,6 +113,16 @@ public static class EchoSandboxBuilder
             Box($"Step_{i}", root, new Vector3(6f, h * 0.5f, -6f - 2f * i), new Vector3(3f, h, 2f), propMat);
         }
 
+        // Comedy ragdoll trap.
+        var trap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        trap.name = "RagdollTrap";
+        trap.transform.SetParent(root, false);
+        trap.transform.position = new Vector3(-8f, 0.05f, 5f);
+        trap.transform.localScale = new Vector3(3f, 0.1f, 3f);
+        trap.GetComponent<MeshRenderer>().sharedMaterial = propMat;
+        trap.GetComponent<CapsuleCollider>().isTrigger = true;
+        trap.AddComponent<RagdollTrap>();
+
         return root;
     }
 
@@ -164,6 +174,16 @@ public static class EchoSandboxBuilder
         var emitterSo = new SerializedObject(emitter);
         emitterSo.FindProperty("_voiceSource").objectReferenceValue = mic;
         emitterSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Ragdoll physics and logic.
+        player.AddComponent<Rigidbody>(); // Rigidbody settings are applied in PlayerRagdoll.Awake
+        var noiseBurst = player.AddComponent<NoiseBurstEmitter>();
+        var ragdoll = player.AddComponent<PlayerRagdoll>();
+        
+        var ragdollSo = new SerializedObject(ragdoll);
+        ragdollSo.FindProperty("_cameraPivot").objectReferenceValue = pivot;
+        ragdollSo.FindProperty("_impactNoise").objectReferenceValue = noiseBurst;
+        ragdollSo.ApplyModifiedPropertiesWithoutUndo();
     }
 
     /// <summary>Bakes the NavMesh from the arena geometry and saves it as an asset next to the scene.</summary>
@@ -201,6 +221,7 @@ public static class EchoSandboxBuilder
 
         // RequireComponent adds NavMeshAgent and HearingSensor automatically.
         enemy.AddComponent<EnemyBrain>();
+        enemy.AddComponent<EnemyCatchReaction>();
 
         var agent = enemy.GetComponent<NavMeshAgent>();
         agent.baseOffset = 1f;          // capsule pivot is its centre (height 2 / 2)

@@ -44,7 +44,7 @@ Textures are projected in **world space** (triplanar-lite), so scaled primitives
 | `IVoiceLevelSource` interface | Consumers read `MicrophoneLoudness` directly | The voice-chat plugin will want to own the microphone later, and remote players will provide a networked value. Swapping the source must not touch consumers. |
 | Global shader values | Per-material properties | One call lights every material in the scene; no per-object bookkeeping. Will become a vector array for multiple players. |
 | Hand-written HLSL shader | Shader Graph | Diff-friendly, reviewable in pull requests, and easier to extend (array of origins). |
-| `CharacterController` | Rigidbody controller | Stable and simple. For ragdolls, the controller is disabled and rigidbodies take over. |
+| `CharacterController` | Rigidbody controller | Stable and simple. For ragdolls, the controller is disabled and rigidbodies take over. See [Player Ragdoll](RAGDOLL.md). |
 | `AnimationCurve` for loudness → radius | Hard-coded formula | Faster iteration on game feel. |
 | Editor builder for the sandbox scene | Hand-built scene | Reproducible: anyone can regenerate the test scene from code. |
 | `INoiseSource` + `NoiseRegistry` | Enemies search the scene for players | Enemies depend on an abstraction, so footsteps, physics impacts or networked voice become audible with zero AI changes. A registry avoids `Find*` calls every frame. See [Enemy AI](ENEMY_AI.md). |

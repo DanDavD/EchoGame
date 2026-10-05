@@ -69,6 +69,7 @@ public class EnemyBrain : MonoBehaviour
     private float _timer;
     private float _lostTimer;
     private float _nextCatchTime;
+    private float _stunUntil;
 
     private void Awake()
     {
@@ -100,6 +101,13 @@ public class EnemyBrain : MonoBehaviour
     private void Update()
     {
         if (!_agent.isOnNavMesh) return;
+
+        if (_stunUntil > 0f)
+        {
+            if (Time.time < _stunUntil) return; // gloating over the victim
+            _stunUntil = 0f;
+            _agent.isStopped = false;
+        }
 
         TryCatchPlayers();
 
@@ -217,6 +225,17 @@ public class EnemyBrain : MonoBehaviour
     }
 
     // ---------------------------------------------------------------- helpers
+    /// <summary>
+    /// Freezes the enemy in place for a few seconds (e.g. after catching a player), then it resumes its state.
+    /// </summary>
+    public void Stun(float seconds)
+    {
+        if (!_agent.isOnNavMesh) return;
+        _agent.isStopped = true;
+        _agent.velocity = Vector3.zero;
+        _stunUntil = Time.time + seconds;
+    }
+
     /// <summary>Reports a catch when the enemy touches any noise owner (blind, but not numb).</summary>
     private void TryCatchPlayers()
     {
