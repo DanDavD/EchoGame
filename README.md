@@ -96,7 +96,7 @@ Assets/
 - [x] Echo vision shader + sandbox scene
 - [x] Enemy AI: Idle → Investigate → Hunt, driven by player loudness
 - [x] Ragdoll system
-- [ ] PS1 look: low-res render, film grain, vignette
+- [x] PS1 look: low-res render, film grain, vignette, vertex snapping
 - [ ] Multiplayer (Fish-Net): networked players, server-authoritative enemies
 - [ ] Proximity voice chat
 - [ ] Steam integration and release build

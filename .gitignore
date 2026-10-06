@@ -112,3 +112,38 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# =========================
+# IDEs & Editors (VS Code, Rider, Visual Studio)
+# =========================
+.idea/
+.vscode/
+*.swp
+*.*~
+
+# =========================
+# OS Generated Files (Windows / Mac)
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =========================
+# Multiplayer & Advanced Audio (Future-proofing)
+# =========================
+# FMOD & Wwise cache/build folders (Standard for horror games)
+/[Ff]mod/Build/
+/[Ff]mod/Cache/
+/[Ww]wise/GeneratedSoundBanks/
+/[Ww]wise/.cache/
+
+# =========================
+# Custom / Temp
+# =========================
+/scratch/
+/temp/

@@ -6,6 +6,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **PS1 Retro Aesthetics**: 
+  - Vertex snapping (wobble) and affine texture mapping (no perspective correction) added to the `EchoReveal` shader.
+  - Custom URP `PS1RetroFeature` that natively downsamples the viewport for crunchy pixels.
+  - Post-processing shader with color depth reduction (banding), film grain, and dynamic VHS screen tearing.
+  - `PS1GlitchController` that triggers heavy screen tearing when the player falls into ragdoll.
 - **Player Ragdoll System**: Players now turn into a physical ragdoll when caught by enemies or when stepping on a `RagdollTrap`.
 - **Enemy Gloating**: Enemies now stall for 3 seconds after catching a player.
 - **Impact Noise**: Hitting the ground in ragdoll mode generates a loud noise burst (`NoiseBurstEmitter`) that attracts enemies.

@@ -184,6 +184,9 @@ public static class EchoSandboxBuilder
         ragdollSo.FindProperty("_cameraPivot").objectReferenceValue = pivot;
         ragdollSo.FindProperty("_impactNoise").objectReferenceValue = noiseBurst;
         ragdollSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Visual effects triggers
+        player.AddComponent<PS1GlitchController>();
     }
 
     /// <summary>Bakes the NavMesh from the arena geometry and saves it as an asset next to the scene.</summary>
