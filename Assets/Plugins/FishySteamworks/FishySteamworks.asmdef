@@ -1,0 +1,26 @@
+{
+    "autoReferenced":  true,
+    "includePlatforms":  [
+
+                         ],
+    "references":  [
+                       "com.rlabrecque.steamworks.net",
+                       "FishNet.Runtime"
+                   ],
+    "overrideReferences":  false,
+    "allowUnsafeCode":  false,
+    "precompiledReferences":  [
+
+                              ],
+    "name":  "FishySteamworks",
+    "excludePlatforms":  [
+
+                         ],
+    "versionDefines":  [
+
+                       ],
+    "defineConstraints":  [
+
+                          ],
+    "noEngineReferences":  false
+}
