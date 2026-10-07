@@ -97,8 +97,8 @@ Assets/
 - [x] Enemy AI: Idle → Investigate → Hunt, driven by player loudness
 - [x] Ragdoll system
 - [ ] PS1 look: low-res render, film grain, vignette
-- [ ] Multiplayer (Fish-Net, FishySteamworks, Steamworks.NET): P2P client-host
-- [ ] Steam integration: Lobby matchmaking, friends overlay (AppID 480)
+- [x] Multiplayer (Fish-Net, FishySteamworks, Steamworks.NET): P2P client-host
+- [x] Steam integration: Lobby matchmaking, friends overlay (AppID 480)
 - [ ] Proximity voice chat (TBD: Steam Voice or Dissonance)
 
 ## Author
