@@ -4,6 +4,7 @@ using FishNet.Managing.Server;
 using FishNet.Transporting;
 using Steamworks;
 using UnityEngine;
+using EchoProtocol.Networking.Steam;
 
 namespace EchoProtocol.Networking.Core
 {
@@ -11,13 +12,16 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(ServerManager))]
     [RequireComponent(typeof(ClientManager))]
     [RequireComponent(typeof(SteamManager))]
+    [RequireComponent(typeof(SteamLobbyManager))]
     public class NetworkBootstrap : MonoBehaviour
     {
         private NetworkManager _networkManager;
+        private SteamLobbyManager _lobbyManager;
 
         private void Awake()
         {
             _networkManager = GetComponent<NetworkManager>();
+            _lobbyManager = GetComponent<SteamLobbyManager>();
             
             // Auto-link Transport
             var transport = GetComponent<Transport>();
@@ -36,7 +40,6 @@ namespace EchoProtocol.Networking.Core
                 _networkManager.TransportManager.Transport = transport;
             }
 
-            // Ensure NetworkManager persists
             DontDestroyOnLoad(gameObject);
         }
 
@@ -63,20 +66,23 @@ namespace EchoProtocol.Networking.Core
 
             if (!_networkManager.IsServerStarted && !_networkManager.IsClientStarted)
             {
-                if (GUILayout.Button("Start P2P Host"))
+                if (GUILayout.Button("Host Steam Lobby (Friends Only)"))
                 {
-                    _networkManager.ServerManager.StartConnection();
-                    _networkManager.ClientManager.StartConnection();
+                    _lobbyManager.HostLobby();
                 }
-                if (GUILayout.Button("Start Client (Localhost fallback)"))
-                {
-                    _networkManager.ClientManager.StartConnection();
-                }
+                
+                GUILayout.Space(5);
+                GUILayout.Label("Tip: To join, use the Steam Overlay (Shift+Tab) -> Join Game.");
             }
             else
             {
                 if (_networkManager.IsServerStarted) GUILayout.Label("[HOST] Server is running");
                 if (_networkManager.IsClientStarted) GUILayout.Label("[CLIENT] Connected");
+
+                if (_lobbyManager.CurrentLobbyID.IsValid())
+                {
+                    GUILayout.Label($"Lobby ID: {_lobbyManager.CurrentLobbyID}");
+                }
 
                 GUILayout.Space(5);
 
@@ -84,6 +90,7 @@ namespace EchoProtocol.Networking.Core
                 {
                     if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
                     if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
+                    _lobbyManager.LeaveLobby();
                 }
             }
             
