@@ -43,7 +43,7 @@ namespace EchoProtocol.Networking.Steam
 
         public void LeaveLobby()
         {
-            if (CurrentLobbyID.IsValid())
+            if (CurrentLobbyID.IsValid() && SteamManager.Initialized)
             {
                 SteamMatchmaking.LeaveLobby(CurrentLobbyID);
                 CurrentLobbyID = CSteamID.Nil;

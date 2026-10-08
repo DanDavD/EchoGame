@@ -1,14 +1,15 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using FishNet.Object;
 
 /// <summary>
 /// First-person "clunky on purpose" controller: slow acceleration, heavy jump, weak air control.
 /// Uses CharacterController (simple and stable). For ragdoll later: disable this component and
 /// the CharacterController, then enable the ragdoll rigidbodies.
-/// Local-only for now; the networking layer will gate this behind IsOwner.
+/// Networked: Uses FishNet. Only the owner reads input and moves.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Input")]
     [SerializeField] private InputActionAsset _inputActions;
@@ -71,20 +72,61 @@ public class PlayerController : MonoBehaviour
             Debug.LogWarning("[PlayerController] No camera pivot assigned: looking up/down is disabled.", this);
     }
 
-    private void OnEnable()
+    public override void OnStartClient()
     {
-        _map?.Enable();
-        SetCursorLocked(true);
+        base.OnStartClient();
+
+        if (base.IsOwner)
+        {
+            _map?.Enable();
+            SetCursorLocked(true);
+            
+            // Explicitly ENABLE the camera for the owner just in case it was disabled in the prefab
+            if (_cameraPivot != null)
+            {
+                Camera cam = _cameraPivot.GetComponentInChildren<Camera>(true);
+                if (cam != null)
+                {
+                    cam.gameObject.SetActive(true);
+                    cam.enabled = true;
+                    AudioListener listener = cam.GetComponent<AudioListener>();
+                    if (listener != null) listener.enabled = true;
+                }
+            }
+        }
+        else
+        {
+            _map?.Disable();
+            
+            // Disable camera and audio listener for remote players
+            if (_cameraPivot != null)
+            {
+                Camera cam = _cameraPivot.GetComponentInChildren<Camera>(true);
+                if (cam != null)
+                {
+                    cam.enabled = false;
+                    cam.gameObject.SetActive(false);
+                    AudioListener listener = cam.GetComponent<AudioListener>();
+                    if (listener != null) listener.enabled = false;
+                }
+            }
+        }
     }
 
-    private void OnDisable()
+    public override void OnStopClient()
     {
-        _map?.Disable();
-        SetCursorLocked(false);
+        base.OnStopClient();
+        if (base.IsOwner)
+        {
+            _map?.Disable();
+            SetCursorLocked(false);
+        }
     }
 
     private void Update()
     {
+        if (!base.IsOwner) return;
+
         // Escape frees the cursor in the editor; click the Game view to lock it again.
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
         else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) SetCursorLocked(true);

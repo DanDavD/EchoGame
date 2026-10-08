@@ -6,6 +6,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Networked Player**: Refactored `PlayerController.cs` to inherit from `NetworkBehaviour`. Inputs, Camera, and AudioListener are now gated by ownership (`base.IsOwner`). 
+- **Player Spawner**: Integrated FishNet's `PlayerSpawner` into the `NetworkBootstrap` UI to automatically spawn the player prefab for connecting clients.
 - **Steam Lobby Integration**: Added `SteamLobbyManager.cs` to handle Steam Matchmaking. Players can now host friends-only lobbies and invite friends via the Steam Overlay (Shift+Tab).
 - **Network Bootstrap**: Added `NetworkBootstrap` and `SteamManager` to auto-configure FishNet and initialize Steam dynamically, including a developer GUI to start P2P Host/Client connections.
 - **Networking Architecture**: Added `docs/NETWORKING.md` defining the P2P client-host flow with Fish-Net, Steamworks.NET, and FishySteamworks.
