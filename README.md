@@ -99,6 +99,7 @@ Assets/
 - [ ] PS1 look: low-res render, film grain, vignette
 - [x] Multiplayer (Fish-Net, FishySteamworks, Steamworks.NET): P2P client-host
 - [x] Steam integration: Lobby matchmaking, friends overlay (AppID 480)
+- [x] Networked Player: Instantiation, ownership, NetworkTransform
 - [ ] Proximity voice chat (TBD: Steam Voice or Dissonance)
 
 ## Author

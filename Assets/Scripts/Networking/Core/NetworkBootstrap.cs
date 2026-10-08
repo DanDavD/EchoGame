@@ -2,6 +2,7 @@ using FishNet.Managing;
 using FishNet.Managing.Client;
 using FishNet.Managing.Server;
 using FishNet.Transporting;
+using FishNet.Component.Spawning;
 using Steamworks;
 using UnityEngine;
 using EchoProtocol.Networking.Steam;
@@ -13,32 +14,21 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(ClientManager))]
     [RequireComponent(typeof(SteamManager))]
     [RequireComponent(typeof(SteamLobbyManager))]
+    [RequireComponent(typeof(PlayerSpawner))]
     public class NetworkBootstrap : MonoBehaviour
     {
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
+        private Transport _steamTransport;
+        private Transport _localTransport;
 
         private void Awake()
         {
             _networkManager = GetComponent<NetworkManager>();
             _lobbyManager = GetComponent<SteamLobbyManager>();
             
-            // Auto-link Transport
-            var transport = GetComponent<Transport>();
-            if (transport == null)
-            {
-                // Add FishySteamworks dynamically to avoid compile-time assembly conflicts
-                System.Type fsType = System.Type.GetType("FishySteamworks.FishySteamworks, FishySteamworks");
-                if (fsType != null)
-                {
-                    transport = (Transport)gameObject.AddComponent(fsType);
-                }
-            }
-
-            if (_networkManager.TransportManager.Transport == null && transport != null)
-            {
-                _networkManager.TransportManager.Transport = transport;
-            }
+            _steamTransport = GetComponent("FishySteamworks") as Transport;
+            _localTransport = GetComponent("Tugboat") as Transport;
 
             DontDestroyOnLoad(gameObject);
         }
@@ -68,11 +58,30 @@ namespace EchoProtocol.Networking.Core
             {
                 if (GUILayout.Button("Host Steam Lobby (Friends Only)"))
                 {
+                    if (_steamTransport != null) _networkManager.TransportManager.Transport = _steamTransport;
                     _lobbyManager.HostLobby();
                 }
-                
-                GUILayout.Space(5);
-                GUILayout.Label("Tip: To join, use the Steam Overlay (Shift+Tab) -> Join Game.");
+
+                GUILayout.Space(10);
+                GUILayout.Label("-- Offline / LAN Testing --");
+
+                if (GUILayout.Button("Host Local (No Steam)"))
+                {
+                    if (_localTransport == null) Debug.LogError("[Bootstrap] Tugboat no encontrado.");
+                    else { _networkManager.TransportManager.Transport = _localTransport;  }
+                    
+                    bool hostStarted = _networkManager.ServerManager.StartConnection();
+                    bool clientStarted = _networkManager.ClientManager.StartConnection();
+                    Debug.Log($"[Bootstrap] Local Host intentado. Server: {hostStarted}, Client: {clientStarted}");
+                }
+                if (GUILayout.Button("Join Local Client"))
+                {
+                    if (_localTransport == null) Debug.LogError("[Bootstrap] Tugboat no encontrado.");
+                    else { _networkManager.TransportManager.Transport = _localTransport;  }
+                    
+                    bool clientStarted = _networkManager.ClientManager.StartConnection();
+                    Debug.Log($"[Bootstrap] Local Join intentado. Client: {clientStarted}");
+                }
             }
             else
             {
