@@ -22,7 +22,8 @@ public class VoiceNoiseEmitter : MonoBehaviour, INoiseSource
 
     private void Awake()
     {
-        _source = (_voiceSource as IVoiceLevelSource) ?? GetComponent<IVoiceLevelSource>();
+        _source = GetComponent<EchoVisionController>();
+        if (_source == null) _source = (_voiceSource as IVoiceLevelSource) ?? GetComponent<IVoiceLevelSource>();
         if (_source == null)
             Debug.LogWarning("[VoiceNoiseEmitter] No IVoiceLevelSource found; this emitter will be silent.", this);
     }

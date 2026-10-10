@@ -6,6 +6,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Multi-Origin Echo Scanner (EchoReveal.shader & EchoShaderPublisher.cs)**: Hand-written HLSL shader upgraded to support up to 4 simultaneous sound origins via global vector arrays (_EchoSources[4] and _EchoFalloffs). EchoShaderPublisher auto-registers all active player instances and broadcasts origins and radii in LateUpdate.
+- **Synchronized Echo Pulses (EchoVisionController.cs)**: Replicated sphere radius and noise level via quantized SyncVar and ServerRpc. Remote clients smoothly interpolate towards replicated radii.
+- **Server-Authoritative Blind Monster (Enemy_Blind.prefab & EnemyBrain.cs)**: Synchronized monster state machine and movement via NetworkTransform. On clients, NavMeshAgent and HearingSensor are safely disabled to prevent physics conflicts while maintaining visual fidelity.
+- **Networked Hearing & Noise Reception (VoiceNoiseEmitter.cs)**: Remote player loudness is transmitted to the server, allowing the server's HearingSensor to detect, investigate, and hunt both players based on proximity and volume.
+- **Networked Ragdoll Synchronization (PlayerController.cs & EnemyCatchReaction.cs)**: Server triggers RpcTriggerRagdoll over network upon catching a victim. Only the owner initiates physical ragdoll tumbling while NetworkTransform replicates the flying trajectory to all peers.
+- **Player Visuals & Camera Isolation**: Added blue checkered Echo_Player.mat material. Player body mesh is hidden locally for seamless first-person view while remote avatars are rendered. Camera and AudioListener instances on remote clones are disabled to eliminate multi-listener conflicts.
+- **Robust Network Spawning (NetworkBootstrap.cs)**: Dynamic runtime prefab registration in SinglePrefabObjects ensuring both Player and Enemy prefabs are registered in FishNet's SpawnablePrefabs on host and client. Enemy is automatically spawned on server initialization.
 - **Networked Player**: Refactored `PlayerController.cs` to inherit from `NetworkBehaviour`. Inputs, Camera, and AudioListener are now gated by ownership (`base.IsOwner`). 
 - **Player Spawner**: Integrated FishNet's `PlayerSpawner` into the `NetworkBootstrap` UI to automatically spawn the player prefab for connecting clients.
 - **Steam Lobby Integration**: Added `SteamLobbyManager.cs` to handle Steam Matchmaking. Players can now host friends-only lobbies and invite friends via the Steam Overlay (Shift+Tab).
@@ -29,3 +36,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `NavMeshBootstrap`: runtime fallback that builds the NavMesh if it is missing.
 - Sandbox builder now bakes a NavMesh, adds a red `Enemy_Blind` (visible only inside echo light) and gives the player a `VoiceNoiseEmitter`.
 - Documentation: `docs/ENEMY_AI.md` (hearing model, state diagram, tuning guide).
+

@@ -40,9 +40,17 @@ public class EnemyCatchReaction : MonoBehaviour
         Vector3 away = victim.position - transform.position;
         away.y = 0f;
         away = away.sqrMagnitude < 0.01f ? transform.forward : away.normalized;
+        Vector3 launch = away * _knockbackSpeed + Vector3.up * _upSpeed;
 
-        // TryRagdoll fails during the victim's grace period; the enemy then keeps hunting instead of freezing.
-        if (ragdoll.TryRagdoll(away * _knockbackSpeed + Vector3.up * _upSpeed))
+        var pc = victim.GetComponentInParent<PlayerController>();
+        if (pc != null && pc.IsSpawned)
+        {
+            pc.RpcTriggerRagdoll(launch);
             _brain.Stun(_stunSeconds);
+        }
+        else if (ragdoll.TryRagdoll(launch))
+        {
+            _brain.Stun(_stunSeconds);
+        }
     }
 }
