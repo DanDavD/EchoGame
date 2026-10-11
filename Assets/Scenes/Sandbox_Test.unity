@@ -2257,6 +2257,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Core.NetworkBootstrap
   _enemyPrefab: {fileID: 1140000000000004, guid: 1310bfde76b4e9b46b216cc3ab99ac1b, type: 3}
+  _relicPrefab: {fileID: 1140000000000002, guid: f723bb9707f94b33a77310f39b2ede5a, type: 3}
 --- !u!114 &1546475775
 MonoBehaviour:
   m_ObjectHideFlags: 0

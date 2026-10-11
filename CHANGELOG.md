@@ -6,6 +6,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Living Relics & Physical Carrying System (`RelicCarryable.cs` & `IInteractable.cs`)**: Server-authoritative pickup and physical drop interaction (`E` interact, `G` drop) with smooth camera socket attachment (`CarrySocket`). Physics, collisions, and `NetworkTransform` are toggled seamlessly during carry and re-enabled upon throwing or dropping.
+- **Player Interaction Raycasting (`PlayerInteraction.cs`)**: Owner-client interaction controller performing forward spherecasts, dynamic HUD prompts (`[E] Pick Up ...` / `Carrying: ... [G] Drop`), and ragdoll auto-drop listening to `PlayerRagdoll.OnRagdollStarted`.
+- **Living Relic Prefab & Visuals (`Relic_Test.prefab` & `Echo_Relic.mat`)**: First networked sentient relic prefab registered in `DefaultPrefabObjects.asset` (PrefabId: 2) and `NetworkBootstrap`, sporting a distinctive golden/amber echolocation reveal material.
+- **Living Relics Multi-Branch Game Loop Architecture (`docs/LIVING_RELICS_DESIGN.md`)**: Comprehensive design document in English detailing relic voice lines, comedic chatter, altar symphony escape sequence, and 6-branch delivery roadmap for the portfolio demo.
+- **English Networking Documentation (`docs/NETWORKING.md`)**: Fully translated to English and aligned with FishNet P2P architecture.
 - **Multi-Origin Echo Scanner (EchoReveal.shader & EchoShaderPublisher.cs)**: Hand-written HLSL shader upgraded to support up to 4 simultaneous sound origins via global vector arrays (_EchoSources[4] and _EchoFalloffs). EchoShaderPublisher auto-registers all active player instances and broadcasts origins and radii in LateUpdate.
 - **Synchronized Echo Pulses (EchoVisionController.cs)**: Replicated sphere radius and noise level via quantized SyncVar and ServerRpc. Remote clients smoothly interpolate towards replicated radii.
 - **Server-Authoritative Blind Monster (Enemy_Blind.prefab & EnemyBrain.cs)**: Synchronized monster state machine and movement via NetworkTransform. On clients, NavMeshAgent and HearingSensor are safely disabled to prevent physics conflicts while maintaining visual fidelity.
