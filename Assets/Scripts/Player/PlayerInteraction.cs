@@ -17,10 +17,10 @@ namespace EchoProtocol.Player
         [SerializeField] private Transform _carrySocket;
 
         [Header("Ragdoll Drop Settings")]
-        [Tooltip("Horizontal ejection speed when ragdolled (sends relic flying ~50-60m).")]
-        [SerializeField] private float _ragdollFlingHorizontal = 26f;
-        [Tooltip("Vertical lift applied when ragdolled (launches it sky-high).")]
-        [SerializeField] private float _ragdollFlingVertical = 22f;
+        [Tooltip("Horizontal ejection speed when ragdolled (sends relic flying ~40m).")]
+        [SerializeField] private float _ragdollFlingHorizontal = 21f;
+        [Tooltip("Vertical lift applied when ragdolled (~12m arc).")]
+        [SerializeField] private float _ragdollFlingVertical = 15f;
 
         private PlayerController _playerController;
         private PlayerRagdoll _playerRagdoll;
