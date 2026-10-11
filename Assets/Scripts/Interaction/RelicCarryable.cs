@@ -44,6 +44,17 @@ namespace EchoProtocol.Interaction
             _col = GetComponent<Collider>();
             _netTransform = GetComponent<NetworkTransform>();
 
+            if (_col != null && _col.sharedMaterial == null)
+            {
+                _col.sharedMaterial = new PhysicsMaterial("RelicPhysics")
+                {
+                    dynamicFriction = 0.35f,
+                    staticFriction = 0.4f,
+                    bounciness = 0.45f,
+                    bounceCombine = PhysicsMaterialCombine.Average
+                };
+            }
+
             _carrier.OnChange += OnCarrierChanged;
         }
 
@@ -188,13 +199,20 @@ namespace EchoProtocol.Interaction
         {
             if (!IsCarried) return;
 
+            // When launching with high velocity (e.g. knocked down by monster), offset slightly forward to prevent clipping carrier
+            if (throwVelocity.sqrMagnitude > 80f)
+            {
+                Vector3 hDir = new Vector3(throwVelocity.x, 0f, throwVelocity.z).normalized;
+                transform.position += hDir * 0.45f + Vector3.up * 0.25f;
+            }
+
             _carrier.Value = null;
 
             // Apply ejection impulse on server
             _rb.isKinematic = false;
             _col.enabled = true;
             _rb.linearVelocity = throwVelocity;
-            _rb.angularVelocity = Random.insideUnitSphere * 4f;
+            _rb.angularVelocity = Random.onUnitSphere * (throwVelocity.sqrMagnitude > 80f ? 15f : 4f);
         }
 
         /// <summary>

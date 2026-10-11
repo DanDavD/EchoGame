@@ -16,6 +16,12 @@ namespace EchoProtocol.Player
         [SerializeField] private LayerMask _interactLayers = ~0; // Everything by default
         [SerializeField] private Transform _carrySocket;
 
+        [Header("Ragdoll Drop Settings")]
+        [Tooltip("Horizontal ejection speed when ragdolled (sends relic flying ~30m).")]
+        [SerializeField] private float _ragdollFlingHorizontal = 18f;
+        [Tooltip("Vertical lift applied when ragdolled.")]
+        [SerializeField] private float _ragdollFlingVertical = 10f;
+
         private PlayerController _playerController;
         private PlayerRagdoll _playerRagdoll;
         private IInteractable _hoveredInteractable;
@@ -138,9 +144,31 @@ namespace EchoProtocol.Player
         {
             if (_carriedRelic == null) return;
 
-            // Drop item with outward impulse when carrier is knocked down
-            Vector3 randomImpulse = Random.onUnitSphere * 4f + Vector3.up * 3f;
-            _carriedRelic.ForceDrop(randomImpulse);
+            // Determine launch direction from monster knockback or camera/body forward
+            Vector3 knockback = (_playerRagdoll != null) ? _playerRagdoll.LastLaunchVelocity : Vector3.zero;
+            Vector3 hDir;
+
+            if (knockback.sqrMagnitude > 1f)
+            {
+                hDir = new Vector3(knockback.x, 0f, knockback.z).normalized;
+            }
+            else
+            {
+                Vector3 fwd = (_playerController != null && _playerController.CameraPivot != null)
+                    ? _playerController.CameraPivot.forward
+                    : transform.forward;
+                hDir = new Vector3(fwd.x, 0f, fwd.z).normalized;
+            }
+
+            if (hDir.sqrMagnitude < 0.01f) hDir = transform.forward;
+
+            // Add slight random horizontal angle dispersion (+-20 degrees)
+            Quaternion scatter = Quaternion.Euler(0f, Random.Range(-20f, 20f), 0f);
+            hDir = scatter * hDir;
+
+            Vector3 powerfulImpulse = hDir * _ragdollFlingHorizontal + Vector3.up * _ragdollFlingVertical;
+
+            _carriedRelic.ForceDrop(powerfulImpulse);
             _carriedRelic = null;
         }
 
