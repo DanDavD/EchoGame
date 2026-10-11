@@ -53,6 +53,61 @@ public class EnemyBrain : NetworkBehaviour
     /// <summary>Current state of the state machine.</summary>
     public EnemyState State { get; private set; } = EnemyState.Idle;
 
+    /// <summary>True if monster AI and movement are frozen for testing.</summary>
+    public static bool IsFrozen { get; private set; } = false;
+
+    /// <summary>Toggles freeze state on all active monsters.</summary>
+    public static void ToggleFreeze()
+    {
+        SetFrozen(!IsFrozen);
+    }
+
+    /// <summary>Sets freeze state on all active monsters.</summary>
+    public static void SetFrozen(bool freeze)
+    {
+        IsFrozen = freeze;
+        Debug.Log($"<color=yellow>[EnemyBrain]</color> Monster Frozen: {IsFrozen}");
+
+        var brains = FindObjectsByType<EnemyBrain>(FindObjectsSortMode.None);
+        foreach (var brain in brains)
+        {
+            if (brain.IsServerStarted || !brain.IsSpawned)
+            {
+                brain.ApplyFreeze(freeze);
+            }
+            else
+            {
+                brain.ServerRequestFreeze(freeze);
+            }
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void ServerRequestFreeze(bool freeze)
+    {
+        IsFrozen = freeze;
+        ApplyFreeze(freeze);
+    }
+
+    /// <summary>Applies agent freeze / unfreeze.</summary>
+    public void ApplyFreeze(bool freeze)
+    {
+        if (_agent != null && _agent.isOnNavMesh)
+        {
+            _agent.isStopped = freeze;
+            if (freeze)
+            {
+                _agent.velocity = Vector3.zero;
+            }
+            else
+            {
+                if (State == EnemyState.Idle) _agent.speed = _wanderSpeed;
+                else if (State == EnemyState.Investigate) _agent.speed = _investigateSpeed;
+                else if (State == EnemyState.Hunt) _agent.speed = _huntSpeed;
+            }
+        }
+    }
+
     /// <summary>Raised on every transition: (previous, new).</summary>
     public event System.Action<EnemyState, EnemyState> OnStateChanged;
 
@@ -113,12 +168,23 @@ public class EnemyBrain : NetworkBehaviour
         }
 
         EnterState(EnemyState.Idle);
+        if (IsFrozen) ApplyFreeze(true);
     }
 
     private void Update()
     {
         if (IsSpawned && !base.IsServerStarted) return;
         if (!_agent.isOnNavMesh) return;
+
+        if (IsFrozen)
+        {
+            if (!_agent.isStopped)
+            {
+                _agent.isStopped = true;
+                _agent.velocity = Vector3.zero;
+            }
+            return;
+        }
 
         if (_stunUntil > 0f)
         {
@@ -319,8 +385,9 @@ public class EnemyBrain : NetworkBehaviour
         if (IsSpawned && !base.IsServerStarted) return;
         if (!_showDebugLabel) return;
         GUI.color = State == EnemyState.Hunt ? Color.red : (State == EnemyState.Investigate ? Color.yellow : Color.white);
+        string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}";
         GUI.Label(new Rect(10f, 54f, 500f, 22f),
-            $"Enemy: {State}  |  heard {_sensor.PerceivedLevel:F2}  |  suspicion {_sensor.Suspicion:F2}");
+            $"{statusText}  |  heard {_sensor.PerceivedLevel:F2}  |  suspicion {_sensor.Suspicion:F2}");
         GUI.color = Color.white;
     }
 

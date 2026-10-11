@@ -54,6 +54,9 @@ public class PlayerRagdoll : MonoBehaviour
     /// <summary>True while physics owns the body.</summary>
     public bool IsRagdolling { get; private set; }
 
+    /// <summary>Last launch velocity applied to this ragdoll.</summary>
+    public Vector3 LastLaunchVelocity { get; private set; }
+
     /// <summary>Raised when the ragdoll starts.</summary>
     public event System.Action OnRagdollStarted;
 
@@ -108,6 +111,7 @@ public class PlayerRagdoll : MonoBehaviour
     {
         if (IsRagdolling || Time.time < _graceUntil) return false;
 
+        LastLaunchVelocity = launchVelocity;
         IsRagdolling = true;
         _timer = 0f;
 

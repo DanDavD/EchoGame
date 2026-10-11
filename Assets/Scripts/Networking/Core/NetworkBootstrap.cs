@@ -20,12 +20,14 @@ namespace EchoProtocol.Networking.Core
     {
         [Header("Prefabs")]
         [SerializeField] private FishNet.Object.NetworkObject _enemyPrefab;
+        [SerializeField] private FishNet.Object.NetworkObject _relicPrefab;
 
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
         private Transport _steamTransport;
         private Transport _localTransport;
         private FishNet.Object.NetworkObject _spawnedEnemyInstance;
+        private FishNet.Object.NetworkObject _spawnedRelicInstance;
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -38,6 +40,10 @@ namespace EchoProtocol.Networking.Core
             if (_enemyPrefab == null)
             {
                 _enemyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/Enemy_Blind.prefab");
+            }
+            if (_relicPrefab == null)
+            {
+                _relicPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/Relic_Test.prefab");
             }
         }
 #endif
@@ -74,9 +80,10 @@ namespace EchoProtocol.Networking.Core
 
         private void Update()
         {
-            if (_networkManager != null && _networkManager.IsServerStarted && _spawnedEnemyInstance == null)
+            if (_networkManager != null && _networkManager.IsServerStarted)
             {
-                SpawnNetworkedEnemy();
+                if (_spawnedEnemyInstance == null) SpawnNetworkedEnemy();
+                if (_spawnedRelicInstance == null) SpawnNetworkedRelic();
             }
         }
 
@@ -85,10 +92,12 @@ namespace EchoProtocol.Networking.Core
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 SpawnNetworkedEnemy();
+                SpawnNetworkedRelic();
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
                 _spawnedEnemyInstance = null;
+                _spawnedRelicInstance = null;
             }
         }
 
@@ -109,6 +118,25 @@ namespace EchoProtocol.Networking.Core
             _spawnedEnemyInstance = Instantiate(_enemyPrefab, new Vector3(-6f, 1f, 16f), Quaternion.identity);
             _networkManager.ServerManager.Spawn(_spawnedEnemyInstance);
             Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Enemy_Blind successfully spawned and synchronized!");
+        }
+
+        private void SpawnNetworkedRelic()
+        {
+            if (_networkManager == null || !_networkManager.IsServerStarted) return;
+            if (_spawnedRelicInstance != null) return;
+
+#if UNITY_EDITOR
+            EnsurePrefabReferences();
+#endif
+            if (_relicPrefab == null)
+            {
+                Debug.LogWarning("[NetworkBootstrap] Relic prefab is null! Cannot spawn relic.");
+                return;
+            }
+
+            _spawnedRelicInstance = Instantiate(_relicPrefab, new Vector3(0f, 0.5f, 2.5f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(_spawnedRelicInstance);
+            Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Relic successfully spawned and synchronized!");
         }
 
         private void EnsureSpawnablePrefabs()
@@ -137,10 +165,10 @@ namespace EchoProtocol.Networking.Core
 
                 if (!needsFix && _networkManager.SpawnablePrefabs is SinglePrefabObjects spoCheck)
                 {
-                    if (spoCheck.Prefabs == null || spoCheck.Prefabs.Count < 2 || spoCheck.Prefabs[0] == null)
+                    if (spoCheck.Prefabs == null || spoCheck.Prefabs.Count < 3 || spoCheck.Prefabs[0] == null)
                         needsFix = true;
                 }
-                else if (!needsFix && _networkManager.SpawnablePrefabs.GetObjectCount() < 2)
+                else if (!needsFix && _networkManager.SpawnablePrefabs.GetObjectCount() < 3)
                 {
                     needsFix = true;
                 }
@@ -153,8 +181,12 @@ namespace EchoProtocol.Networking.Core
                     {
                         spo.AddObject(_enemyPrefab, false, true);
                     }
+                    if (_relicPrefab != null)
+                    {
+                        spo.AddObject(_relicPrefab, false, true);
+                    }
                     _networkManager.SpawnablePrefabs = spo;
-                    Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy)!");
+                    Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy + Relic)!");
                 }
             }
         }
@@ -243,6 +275,7 @@ namespace EchoProtocol.Networking.Core
                 if (GUILayout.Button("Disconnect"))
                 {
                     _spawnedEnemyInstance = null;
+                    _spawnedRelicInstance = null;
                     if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
                     if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
                     _lobbyManager.LeaveLobby();

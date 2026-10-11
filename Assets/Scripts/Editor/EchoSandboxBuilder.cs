@@ -25,6 +25,36 @@ public static class EchoSandboxBuilder
     static EchoSandboxBuilder()
     {
         EditorApplication.delayCall += AutoBuildOnce;
+        EditorApplication.delayCall += CheckAndExpandArena;
+    }
+
+    private static void CheckAndExpandArena()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+        {
+            EditorApplication.delayCall += CheckAndExpandArena;
+            return;
+        }
+
+        if (!File.Exists(ScenePath)) return;
+
+        var scene = EditorSceneManager.GetActiveScene();
+        if (scene.path != ScenePath)
+        {
+            scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
+        var arenaObj = GameObject.Find("Arena");
+        if (arenaObj == null) return;
+
+        Transform floor = arenaObj.transform.Find("Floor");
+        if (floor != null && floor.localScale.x >= 110f && arenaObj.transform.Find("Pillar_1") == null)
+        {
+            return; // Already expanded and cleared
+        }
+
+        ExpandArenaAndClearObstacles();
     }
 
     private static void AutoBuildOnce()
@@ -82,46 +112,101 @@ public static class EchoSandboxBuilder
     }
 
     // ------------------------------------------------------------------------------------------
+    [MenuItem("Echo Protocol/Expand Arena & Clear Obstacles")]
+    public static void ExpandArenaAndClearObstacles()
+    {
+        var scene = EditorSceneManager.GetActiveScene();
+        if (scene.path != ScenePath)
+        {
+            scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
+        var arenaObj = GameObject.Find("Arena");
+        if (arenaObj == null)
+        {
+            Debug.LogError("[EchoSandboxBuilder] Arena GameObject not found.");
+            return;
+        }
+
+        Transform arena = arenaObj.transform;
+
+        // 1. Expand Floor to 120x120
+        Transform floor = arena.Find("Floor");
+        if (floor != null)
+        {
+            floor.localPosition = new Vector3(0f, -0.5f, 0f);
+            floor.localScale = new Vector3(120f, 1f, 120f);
+        }
+
+        // 2. Expand Perimeter Walls to 120m bounds
+        Transform wallN = arena.Find("Wall_N");
+        if (wallN != null)
+        {
+            wallN.localPosition = new Vector3(0f, 3f, 60.5f);
+            wallN.localScale = new Vector3(122f, 6f, 1f);
+        }
+
+        Transform wallS = arena.Find("Wall_S");
+        if (wallS != null)
+        {
+            wallS.localPosition = new Vector3(0f, 3f, -60.5f);
+            wallS.localScale = new Vector3(122f, 6f, 1f);
+        }
+
+        Transform wallE = arena.Find("Wall_E");
+        if (wallE != null)
+        {
+            wallE.localPosition = new Vector3(60.5f, 3f, 0f);
+            wallE.localScale = new Vector3(1f, 6f, 122f);
+        }
+
+        Transform wallW = arena.Find("Wall_W");
+        if (wallW != null)
+        {
+            wallW.localPosition = new Vector3(-60.5f, 3f, 0f);
+            wallW.localScale = new Vector3(1f, 6f, 122f);
+        }
+
+        // 3. Destroy all obstacles
+        string[] obstacles = new[] {
+            "Pillar_1", "Pillar_2", "Block_3", "Wall_4", "Wall_5", "Pillar_6", "Pillar_7",
+            "JumpBar", "Step_0", "Step_1", "Step_2", "Step_3", "Step_4", "Step_5", "RagdollTrap"
+        };
+
+        foreach (var obsName in obstacles)
+        {
+            Transform obs = arena.Find(obsName);
+            if (obs != null)
+            {
+                Object.DestroyImmediate(obs.gameObject);
+            }
+        }
+
+        // 4. Rebuild NavMesh
+        var surface = arenaObj.GetComponent<NavMeshSurface>();
+        if (surface != null)
+        {
+            surface.BuildNavMesh();
+        }
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        AssetDatabase.SaveAssets();
+        Debug.Log("<color=green>[EchoSandboxBuilder]</color> Arena expanded to 120x120m and obstacles cleared successfully!");
+    }
+
+    // ------------------------------------------------------------------------------------------
     private static Transform BuildArena(Material floorMat, Material wallMat, Material propMat)
     {
         var root = new GameObject("Arena").transform;
 
-        Box("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f), floorMat);
+        Box("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(120f, 1f, 120f), floorMat);
 
         // Perimeter walls.
-        Box("Wall_N", root, new Vector3(0f, 3f, 30.5f), new Vector3(62f, 6f, 1f), wallMat);
-        Box("Wall_S", root, new Vector3(0f, 3f, -30.5f), new Vector3(62f, 6f, 1f), wallMat);
-        Box("Wall_E", root, new Vector3(30.5f, 3f, 0f), new Vector3(1f, 6f, 62f), wallMat);
-        Box("Wall_W", root, new Vector3(-30.5f, 3f, 0f), new Vector3(1f, 6f, 62f), wallMat);
-
-        // Pillars / blocks to reveal.
-        Box("Pillar_1", root, new Vector3(8f, 2f, 6f), new Vector3(2f, 4f, 2f), propMat);
-        Box("Pillar_2", root, new Vector3(-10f, 2f, 12f), new Vector3(3f, 4f, 3f), propMat);
-        Box("Block_3", root, new Vector3(14f, 1f, -9f), new Vector3(4f, 2f, 4f), propMat);
-        Box("Wall_4", root, new Vector3(-14f, 1.5f, -10f), new Vector3(2f, 3f, 6f), propMat);
-        Box("Wall_5", root, new Vector3(0f, 1f, 18f), new Vector3(6f, 2f, 1.5f), propMat);
-        Box("Pillar_6", root, new Vector3(-20f, 2.5f, 0f), new Vector3(2f, 5f, 2f), propMat);
-        Box("Pillar_7", root, new Vector3(20f, 2f, 14f), new Vector3(2f, 4f, 2f), propMat);
-
-        // Low obstacle to jump over.
-        Box("JumpBar", root, new Vector3(0f, 0.4f, 6f), new Vector3(4f, 0.8f, 0.8f), propMat);
-
-        // Staircase of growing blocks (clunky climbing practice).
-        for (int i = 0; i < 6; i++)
-        {
-            float h = 0.4f * (i + 1);
-            Box($"Step_{i}", root, new Vector3(6f, h * 0.5f, -6f - 2f * i), new Vector3(3f, h, 2f), propMat);
-        }
-
-        // Comedy ragdoll trap.
-        var trap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        trap.name = "RagdollTrap";
-        trap.transform.SetParent(root, false);
-        trap.transform.position = new Vector3(-8f, 0.05f, 5f);
-        trap.transform.localScale = new Vector3(3f, 0.1f, 3f);
-        trap.GetComponent<MeshRenderer>().sharedMaterial = propMat;
-        trap.GetComponent<CapsuleCollider>().isTrigger = true;
-        trap.AddComponent<RagdollTrap>();
+        Box("Wall_N", root, new Vector3(0f, 3f, 60.5f), new Vector3(122f, 6f, 1f), wallMat);
+        Box("Wall_S", root, new Vector3(0f, 3f, -60.5f), new Vector3(122f, 6f, 1f), wallMat);
+        Box("Wall_E", root, new Vector3(60.5f, 3f, 0f), new Vector3(1f, 6f, 122f), wallMat);
+        Box("Wall_W", root, new Vector3(-60.5f, 3f, 0f), new Vector3(1f, 6f, 122f), wallMat);
 
         return root;
     }

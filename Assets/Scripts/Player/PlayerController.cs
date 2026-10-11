@@ -19,6 +19,9 @@ public class PlayerController : NetworkBehaviour
     [Tooltip("Child transform holding the camera. Rotates up/down (pitch).")]
     [SerializeField] private Transform _cameraPivot;
 
+    /// <summary>Camera pivot transform for raycasts and view orientation.</summary>
+    public Transform CameraPivot => _cameraPivot;
+
     [Header("Movement (clunky on purpose)")]
     [SerializeField] private float _walkSpeed = 3.5f;
     [SerializeField] private float _sprintSpeed = 5.5f;
@@ -81,6 +84,11 @@ public class PlayerController : NetworkBehaviour
                 AudioListener listener = cam.GetComponent<AudioListener>();
                 if (listener != null) listener.enabled = false;
             }
+        }
+
+        if (GetComponent<EchoProtocol.Player.PlayerInteraction>() == null)
+        {
+            gameObject.AddComponent<EchoProtocol.Player.PlayerInteraction>();
         }
     }
 
