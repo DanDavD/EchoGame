@@ -9,7 +9,8 @@ The project is built solo under a tight deadline, so the guiding principle is: *
 flowchart LR
     Mic["Microphone"] --> ML["MicrophoneLoudness<br/>(RMS → dB → 0..1)"]
     ML -- "IVoiceLevelSource.Level01" --> EV["EchoVisionController<br/>(level → radius)"]
-    EV -- "Shader.SetGlobal*<br/>_EchoOrigin / _EchoRadius / _EchoFalloff" --> SH["EchoReveal shader<br/>(sphere mask)"]
+    EV -- "Registers" --> ESP["EchoShaderPublisher<br/>(arrays)"]
+    ESP -- "Shader.SetGlobal*<br/>_EchoSources[4] / _EchoFalloffs" --> SH["EchoReveal shader<br/>(sphere masks)"]
     ML -- "IVoiceLevelSource" --> VNE["VoiceNoiseEmitter"] --> HS["HearingSensor"] --> AI["EnemyBrain<br/>(Idle/Investigate/Hunt)"]
     PC["PlayerController"] -. "position" .-> EV
 ```
@@ -25,8 +26,8 @@ Why dB and not raw RMS? Human loudness perception is logarithmic; raw RMS makes 
 
 ### 2. `EchoVisionController` (`Scripts/Echo`)
 Maps `Level01` to a radius through an editable `AnimationCurve` (designers tune feel without touching code),
-applies a noise gate, and smooths growth/decay separately. It publishes three **global shader values** every `LateUpdate`
-(after player movement, so the light never lags behind the camera).
+applies a noise gate, and smooths growth/decay separately. It calculates the local target radius. In multiplayer, the owner sets a FishNet `SyncVar`, and clients smooth towards it.
+(after movement. Instances register with `EchoShaderPublisher`, which aggregates up to 4 players and sets the global shader arrays).
 
 ### 3. `EchoReveal` shader (`Shaders/EchoReveal.shader`)
 URP unlit HLSL. Per pixel:
@@ -70,3 +71,4 @@ Principle: **enemies run only on the server; each client owns its own player.**
 - Private serialized fields (`[SerializeField] private float _moveSpeed`).
 - Modern Unity 6 APIs (`FindFirstObjectByType`, Input System callbacks/assets).
 - One responsibility per script.
+

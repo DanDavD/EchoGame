@@ -1,6 +1,7 @@
 using FishNet.Managing;
 using FishNet.Managing.Client;
 using FishNet.Managing.Server;
+using FishNet.Managing.Object;
 using FishNet.Transporting;
 using FishNet.Component.Spawning;
 using Steamworks;
@@ -17,10 +18,29 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(PlayerSpawner))]
     public class NetworkBootstrap : MonoBehaviour
     {
+        [Header("Prefabs")]
+        [SerializeField] private FishNet.Object.NetworkObject _enemyPrefab;
+
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
         private Transport _steamTransport;
         private Transport _localTransport;
+        private FishNet.Object.NetworkObject _spawnedEnemyInstance;
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            EnsurePrefabReferences();
+        }
+
+        private void EnsurePrefabReferences()
+        {
+            if (_enemyPrefab == null)
+            {
+                _enemyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/Enemy_Blind.prefab");
+            }
+        }
+#endif
 
         private void Awake()
         {
@@ -30,7 +50,132 @@ namespace EchoProtocol.Networking.Core
             _steamTransport = GetComponent("FishySteamworks") as Transport;
             _localTransport = GetComponent("Tugboat") as Transport;
 
+#if UNITY_EDITOR
+            EnsurePrefabReferences();
+#endif
+            SetupSpawnPoints();
+            EnsureSpawnablePrefabs();
+
+            if (_networkManager != null && _networkManager.ServerManager != null)
+            {
+                _networkManager.ServerManager.OnServerConnectionState += HandleServerConnectionState;
+            }
+
             DontDestroyOnLoad(gameObject);
+        }
+
+        private void OnDestroy()
+        {
+            if (_networkManager != null && _networkManager.ServerManager != null)
+            {
+                _networkManager.ServerManager.OnServerConnectionState -= HandleServerConnectionState;
+            }
+        }
+
+        private void Update()
+        {
+            if (_networkManager != null && _networkManager.IsServerStarted && _spawnedEnemyInstance == null)
+            {
+                SpawnNetworkedEnemy();
+            }
+        }
+
+        private void HandleServerConnectionState(ServerConnectionStateArgs args)
+        {
+            if (args.ConnectionState == LocalConnectionState.Started)
+            {
+                SpawnNetworkedEnemy();
+            }
+            else if (args.ConnectionState == LocalConnectionState.Stopped)
+            {
+                _spawnedEnemyInstance = null;
+            }
+        }
+
+        private void SpawnNetworkedEnemy()
+        {
+            if (_networkManager == null || !_networkManager.IsServerStarted) return;
+            if (_spawnedEnemyInstance != null) return;
+
+#if UNITY_EDITOR
+            EnsurePrefabReferences();
+#endif
+            if (_enemyPrefab == null)
+            {
+                Debug.LogError("[NetworkBootstrap] Enemy prefab is null! Cannot spawn enemy.");
+                return;
+            }
+
+            _spawnedEnemyInstance = Instantiate(_enemyPrefab, new Vector3(-6f, 1f, 16f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(_spawnedEnemyInstance);
+            Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Enemy_Blind successfully spawned and synchronized!");
+        }
+
+        private void EnsureSpawnablePrefabs()
+        {
+#if UNITY_EDITOR
+            EnsurePrefabReferences();
+#endif
+            var spawner = GetComponent<PlayerSpawner>();
+            FishNet.Object.NetworkObject playerPrefab = null;
+            if (spawner != null)
+            {
+                var fi = typeof(PlayerSpawner).GetField("_playerPrefab", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                playerPrefab = fi?.GetValue(spawner) as FishNet.Object.NetworkObject;
+            }
+
+#if UNITY_EDITOR
+            if (playerPrefab == null)
+            {
+                playerPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/Player.prefab");
+            }
+#endif
+
+            if (playerPrefab != null)
+            {
+                bool needsFix = _networkManager.SpawnablePrefabs == null;
+
+                if (!needsFix && _networkManager.SpawnablePrefabs is SinglePrefabObjects spoCheck)
+                {
+                    if (spoCheck.Prefabs == null || spoCheck.Prefabs.Count < 2 || spoCheck.Prefabs[0] == null)
+                        needsFix = true;
+                }
+                else if (!needsFix && _networkManager.SpawnablePrefabs.GetObjectCount() < 2)
+                {
+                    needsFix = true;
+                }
+
+                if (needsFix)
+                {
+                    SinglePrefabObjects spo = ScriptableObject.CreateInstance<SinglePrefabObjects>();
+                    spo.AddObject(playerPrefab, false, true);
+                    if (_enemyPrefab != null)
+                    {
+                        spo.AddObject(_enemyPrefab, false, true);
+                    }
+                    _networkManager.SpawnablePrefabs = spo;
+                    Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy)!");
+                }
+            }
+        }
+
+        private void SetupSpawnPoints()
+        {
+            var spawner = GetComponent<PlayerSpawner>();
+            if (spawner != null && (spawner.Spawns == null || spawner.Spawns.Length == 0))
+            {
+                var s1 = new GameObject("SpawnPoint_1").transform;
+                s1.position = new Vector3(-3.5f, 1.1f, -4f);
+                s1.rotation = Quaternion.identity;
+                s1.SetParent(transform);
+
+                var s2 = new GameObject("SpawnPoint_2").transform;
+                s2.position = new Vector3(3.5f, 1.1f, -4f);
+                s2.rotation = Quaternion.identity;
+                s2.SetParent(transform);
+
+                spawner.Spawns = new Transform[] { s1, s2 };
+            }
         }
 
         private void OnGUI()
@@ -97,6 +242,7 @@ namespace EchoProtocol.Networking.Core
 
                 if (GUILayout.Button("Disconnect"))
                 {
+                    _spawnedEnemyInstance = null;
                     if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
                     if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
                     _lobbyManager.LeaveLobby();

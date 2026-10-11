@@ -1,8 +1,10 @@
 // EchoReveal - URP unlit shader.
-// Everything is pitch black except inside the sphere defined by the global values that
-// EchoVisionController publishes every frame:
-//   _EchoOrigin (xyz = world position), _EchoRadius (m), _EchoFalloff (soft edge width, m)
-// Textures are projected in WORLD space (triplanar-lite), so scaled cubes never stretch the texture.
+// Everything is pitch black except inside any of the echo spheres published each frame by
+// EchoShaderPublisher (one sphere per connected player, max 4):
+//   _EchoSources[i] (xyz = world position, w = radius in m)
+//   _EchoFalloffs   (x,y,z,w = soft edge width in m for sources 0..3)
+// A source with radius 0 is inactive. Textures are projected in WORLD space (triplanar-lite),
+// so scaled cubes never stretch the texture.
 Shader "EchoProtocol/EchoReveal"
 {
     Properties
@@ -28,6 +30,8 @@ Shader "EchoProtocol/EchoReveal"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+            #define ECHO_MAX_SOURCES 4
+
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
 
@@ -39,9 +43,8 @@ Shader "EchoProtocol/EchoReveal"
             CBUFFER_END
 
             // Globals set from C# (Shader.SetGlobal*). Must live OUTSIDE UnityPerMaterial.
-            float4 _EchoOrigin;
-            float _EchoRadius;
-            float _EchoFalloff;
+            float4 _EchoSources[ECHO_MAX_SOURCES]; // xyz = origin, w = radius
+            float4 _EchoFalloffs;                  // soft edge width per source
 
             struct Attributes
             {
@@ -67,14 +70,26 @@ Shader "EchoProtocol/EchoReveal"
 
             half4 frag(Varyings IN) : SV_Target
             {
-                // 1. Distance to the echo origin -> sphere mask (1 inside, soft fade to 0 at the edge).
-                float dist = distance(IN.positionWS, _EchoOrigin.xyz);
-                float edgeStart = max(_EchoRadius - _EchoFalloff, 0.0);
-                float edgeEnd = _EchoRadius + 0.01; // +0.01 avoids smoothstep(0,0) when radius = 0
-                float mask = 1.0 - smoothstep(edgeStart, edgeEnd, dist);
+                // 1. Sphere mask per source (1 inside, soft fade to 0 at the edge).
+                //    The final mask / ring is the strongest of all sources, so a point lit by
+                //    ANY player is visible.
+                float mask = 0.0;
+                float ring = 0.0;
+                [unroll]
+                for (int i = 0; i < ECHO_MAX_SOURCES; i++)
+                {
+                    float radius = _EchoSources[i].w;
+                    float falloff = _EchoFalloffs[i];
+                    float dist = distance(IN.positionWS, _EchoSources[i].xyz);
+                    float edgeStart = max(radius - falloff, 0.0);
+                    float edgeEnd = radius + 0.01; // +0.01 avoids smoothstep(0,0) when radius = 0
+                    float m = 1.0 - smoothstep(edgeStart, edgeEnd, dist);
+                    m *= step(0.001, radius); // inactive source (radius 0) contributes nothing
 
-                // 2. Glowing ring that peaks at the sphere edge (bell curve of the mask).
-                float ring = mask * (1.0 - mask) * 4.0;
+                    // 2. Glowing ring that peaks at the sphere edge (bell curve of the mask).
+                    ring = max(ring, m * (1.0 - m) * 4.0);
+                    mask = max(mask, m);
+                }
 
                 // 3. World-space projected texture (pick the axis the surface faces most).
                 float3 n = abs(normalize(IN.normalWS));

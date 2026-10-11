@@ -1246,7 +1246,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &520705641
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2256,6 +2256,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3ebb2de828237c44ad820aca5272d4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Core.NetworkBootstrap
+  _enemyPrefab: {fileID: 1140000000000004, guid: 1310bfde76b4e9b46b216cc3ab99ac1b, type: 3}
 --- !u!114 &1546475775
 MonoBehaviour:
   m_ObjectHideFlags: 0

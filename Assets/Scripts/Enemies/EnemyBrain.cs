@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using FishNet.Object;
 
 /// <summary>States of the blind enemy.</summary>
 public enum EnemyState
@@ -18,7 +19,7 @@ public enum EnemyState
 /// Movement uses a NavMeshAgent. Server-side only in multiplayer.
 /// </summary>
 [RequireComponent(typeof(NavMeshAgent), typeof(HearingSensor))]
-public class EnemyBrain : MonoBehaviour
+public class EnemyBrain : NetworkBehaviour
 {
     [Header("Speeds (m/s)")]
     [SerializeField] private float _wanderSpeed = 1.2f;
@@ -78,8 +79,24 @@ public class EnemyBrain : MonoBehaviour
         _path = new NavMeshPath();
     }
 
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        if (!base.IsServerStarted)
+        {
+            // On remote clients, disable NavMeshAgent and HearingSensor so NetworkTransform controls position smoothly
+            if (_agent == null) _agent = GetComponent<NavMeshAgent>();
+            if (_sensor == null) _sensor = GetComponent<HearingSensor>();
+            if (_agent != null) _agent.enabled = false;
+            if (_sensor != null) _sensor.enabled = false;
+            enabled = false;
+        }
+    }
+
     private void Start()
     {
+        if (IsSpawned && !base.IsServerStarted) return;
+
         _home = transform.position;
 
         // The NavMesh may have been created after the agent was enabled. Re-enable to attach it.
@@ -100,6 +117,7 @@ public class EnemyBrain : MonoBehaviour
 
     private void Update()
     {
+        if (IsSpawned && !base.IsServerStarted) return;
         if (!_agent.isOnNavMesh) return;
 
         if (_stunUntil > 0f)
@@ -298,6 +316,7 @@ public class EnemyBrain : MonoBehaviour
     // ---------------------------------------------------------------- debug
     private void OnGUI()
     {
+        if (IsSpawned && !base.IsServerStarted) return;
         if (!_showDebugLabel) return;
         GUI.color = State == EnemyState.Hunt ? Color.red : (State == EnemyState.Investigate ? Color.yellow : Color.white);
         GUI.Label(new Rect(10f, 54f, 500f, 22f),

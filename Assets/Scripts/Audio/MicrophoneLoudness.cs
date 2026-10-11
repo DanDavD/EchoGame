@@ -27,7 +27,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     [Header("Calibration (dB, 0 dB = full scale)")]
     [Tooltip("Level at or below this counts as silence (your room noise floor).")]
-    [SerializeField] private float _silenceDb = -50f;
+    [SerializeField] private float _silenceDb = -35f;
     [Tooltip("Level at or above this counts as a full scream (Level01 = 1).")]
     [SerializeField] private float _screamDb = -12f;
 
@@ -63,6 +63,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private string _device;       // null = default device
     private float[] _buffer;
     private bool _calibrating;
+    private float _debugBurstTimer;
 
     private void OnEnable()
     {
@@ -99,9 +100,22 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     private void Update()
     {
-        if (_clip == null) return;
+        // Single tap burst on V key: emits sound for 0.25s then fades back to silence
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.vKey.wasPressedThisFrame)
+        {
+            _debugBurstTimer = 0.25f;
+        }
 
-        float target = ReadTargetLevel();
+        float burstTarget = 0f;
+        if (_debugBurstTimer > 0f)
+        {
+            _debugBurstTimer -= Time.deltaTime;
+            burstTarget = 1f;
+        }
+
+        float micTarget = (_clip != null) ? ReadTargetLevel() : 0f;
+        float target = Mathf.Max(micTarget, burstTarget);
+
         // Fast attack / slow release so shouts register instantly but light fades out naturally.
         float speed = target > Level01 ? _attackSpeed : _releaseSpeed;
         Level01 = Mathf.Lerp(Level01, target, 1f - Mathf.Exp(-speed * Time.deltaTime));
@@ -114,8 +128,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     {
         int pos = Microphone.GetPosition(_device);
         int start = pos - _sampleWindow;
-        // Mic not started yet, or we just looped around the clip: keep the previous value this frame.
-        if (start < 0) return Level01;
+        // Mic not started yet, or we just looped around the clip: return silence
+        if (start < 0) return 0f;
 
         _clip.GetData(_buffer, start);
 
@@ -124,7 +138,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         float rms = Mathf.Sqrt(sum / _buffer.Length);
 
         CurrentDb = rms > 1e-6f ? 20f * Mathf.Log10(rms) : -80f;
-        return Mathf.InverseLerp(_silenceDb, _screamDb, CurrentDb);
+        if (CurrentDb <= _silenceDb) return 0f;
+        return Mathf.Clamp01(Mathf.InverseLerp(_silenceDb, _screamDb, CurrentDb));
     }
 
     private void UpdateState()

@@ -1,20 +1,19 @@
+using FishNet.Object;
+using FishNet.Object.Synchronizing;
+using FishNet.Transporting;
 using UnityEngine;
 
 /// <summary>
-/// Turns the player's voice loudness into a growing sphere of light, by publishing
-/// global shader values read by the EchoReveal Shader Graph:
-///   _EchoOrigin  (Vector4)  world position of the sphere centre
-///   _EchoRadius  (float)    sphere radius in metres
-///   _EchoFalloff (float)    width of the soft edge in metres
-/// Single-player prototype: one global origin. For multiplayer we will switch to
-/// Shader.SetGlobalVectorArray with one entry per player.
+/// Turns a player's voice loudness into a growing sphere of light (networked).
+///   * The OWNER reads its own microphone, computes the radius and writes it to a SyncVar.
+///   * Every OTHER client receives that radius and smooths towards it, so all players see
+///     everyone else's echo. The sphere centre follows the player's NetworkTransform.
+/// Each instance registers itself in <see cref="EchoShaderPublisher"/>, which feeds the
+/// EchoReveal shader (up to 4 simultaneous spheres).
+/// Offline (not spawned on the network) it behaves like the original single-player prototype.
 /// </summary>
-public class EchoVisionController : MonoBehaviour
+public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
 {
-    private static readonly int EchoOriginId = Shader.PropertyToID("_EchoOrigin");
-    private static readonly int EchoRadiusId = Shader.PropertyToID("_EchoRadius");
-    private static readonly int EchoFalloffId = Shader.PropertyToID("_EchoFalloff");
-
     [Header("Source")]
     [Tooltip("Any component implementing IVoiceLevelSource (e.g. MicrophoneLoudness). " +
              "If empty, it is searched on this GameObject.")]
@@ -43,12 +42,43 @@ public class EchoVisionController : MonoBehaviour
     [SerializeField, Range(0.05f, 1f)] private float _falloffRatio = 0.5f;
     [SerializeField] private float _minFalloff = 0.4f;
 
+    [Header("Networking")]
+    [Tooltip("Seconds between radius updates sent over the network.")]
+    [SerializeField] private float _syncSendRate = 0.05f;
+    [Tooltip("Radius is rounded to this step (m) before syncing to avoid sending tiny changes.")]
+    [SerializeField] private float _syncQuantization = 0.25f;
+    [Tooltip("Seconds remote clients take to follow the synced radius (hides the send-rate steps).")]
+    [SerializeField] private float _remoteSmoothTime = 0.08f;
+
+    /// <summary>Radius (m) replicated from the owner to all observers.</summary>
+    private readonly SyncVar<float> _syncedRadius = new SyncVar<float>();
+    private float _lastSentRadius = -1f;
+    private float _lastSentTime;
+    private float _networkedLoudness;
+
+    /// <summary>Smoothed, calibrated loudness for IVoiceLevelSource.</summary>
+    public float Level01
+    {
+        get
+        {
+            if (IsLocalSource) return _source != null ? _source.Level01 : 0f;
+            return _networkedLoudness;
+        }
+    }
+
     /// <summary>Current radius of the revealed sphere (metres). Useful for gameplay/debug.</summary>
     public float CurrentRadius => _currentRadius;
+    /// <summary>World-space centre of the sphere.</summary>
+    public Vector3 Origin => transform.position + _originOffset;
+    /// <summary>Soft edge width (m) for the current radius.</summary>
+    public float CurrentFalloff => Mathf.Max(_minFalloff, _currentRadius * _falloffRatio);
 
     private IVoiceLevelSource _source;
     private float _currentRadius;
     private float _radiusVelocity;
+
+    /// <summary>True when this instance drives its own radius from a local microphone.</summary>
+    private bool IsLocalSource => !IsSpawned || IsOwner;
 
     private void Awake()
     {
@@ -56,15 +86,66 @@ public class EchoVisionController : MonoBehaviour
         if (_source == null) _source = GetComponent<IVoiceLevelSource>();
 
         if (_source == null)
-        {
             Debug.LogError("[EchoVisionController] No IVoiceLevelSource found. Add MicrophoneLoudness.", this);
-            enabled = false;
-        }
+    }
+
+    private void OnEnable()
+    {
+        EchoShaderPublisher.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        EchoShaderPublisher.Unregister(this);
+        _currentRadius = 0f;
+        _radiusVelocity = 0f;
+    }
+
+    public override void OnStartNetwork()
+    {
+        base.OnStartNetwork();
+        _syncedRadius.UpdateSendRate(_syncSendRate);
+    }
+
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+
+        // Only the owner may capture a microphone. Remote avatars must not open the device
+        // nor draw the debug loudness bar.
+        if (!IsOwner && _source is Behaviour voiceBehaviour)
+            voiceBehaviour.enabled = false;
+    }
+
+    public override void OnStopClient()
+    {
+        base.OnStopClient();
+        _currentRadius = 0f;
+        _radiusVelocity = 0f;
     }
 
     private void LateUpdate()
     {
         // LateUpdate so the origin uses the player's final position after movement this frame.
+        if (IsLocalSource)
+        {
+            UpdateLocalRadius();
+        }
+        else
+        {
+            UpdateRemoteRadius();
+            if (IsServerStarted)
+            {
+                // Smoothly decay networked loudness on server between RPC packets
+                _networkedLoudness = Mathf.MoveTowards(_networkedLoudness, 0f, Time.deltaTime * 3f);
+            }
+        }
+    }
+
+    private void UpdateLocalRadius()
+    {
+        if (_source == null) return;
+
         float level = _source.Level01;
         float targetRadius = level < _noiseGate ? 0f : _maxRadius * _radiusCurve.Evaluate(level);
 
@@ -72,28 +153,52 @@ public class EchoVisionController : MonoBehaviour
         _currentRadius = Mathf.SmoothDamp(_currentRadius, targetRadius, ref _radiusVelocity, smoothTime);
         if (_currentRadius < 0.01f) _currentRadius = 0f;
 
-        Publish(_currentRadius);
+        if (IsSpawned)
+        {
+            float q = Quantize(_currentRadius);
+            bool radiusChanged = Mathf.Abs(_lastSentRadius - q) > 0.05f;
+            bool periodicLoudness = level > _noiseGate && Time.time - _lastSentTime > 0.15f;
+
+            if (radiusChanged || periodicLoudness)
+            {
+                _lastSentRadius = q;
+                _lastSentTime = Time.time;
+                if (IsServerStarted)
+                {
+                    _syncedRadius.Value = q;
+                    _networkedLoudness = level;
+                }
+                else
+                {
+                    ServerSetRadius(q, level);
+                }
+            }
+        }
     }
 
-    private void OnDisable()
+    [ServerRpc]
+    private void ServerSetRadius(float radius, float loudness)
     {
-        // Back to pitch black when the player goes away.
-        _currentRadius = 0f;
-        _radiusVelocity = 0f;
-        Publish(0f);
+        _syncedRadius.Value = radius;
+        _networkedLoudness = loudness;
     }
 
-    private void Publish(float radius)
+    private void UpdateRemoteRadius()
     {
-        Vector3 origin = transform.position + _originOffset;
-        Shader.SetGlobalVector(EchoOriginId, origin);
-        Shader.SetGlobalFloat(EchoRadiusId, radius);
-        Shader.SetGlobalFloat(EchoFalloffId, Mathf.Max(_minFalloff, radius * _falloffRatio));
+        float target = _syncedRadius.Value;
+        _currentRadius = Mathf.SmoothDamp(_currentRadius, target, ref _radiusVelocity, _remoteSmoothTime);
+        if (_currentRadius < 0.01f && target <= 0f) _currentRadius = 0f;
+    }
+
+    private float Quantize(float radius)
+    {
+        if (radius <= 0f || _syncQuantization <= 0f) return radius;
+        return Mathf.Round(radius / _syncQuantization) * _syncQuantization;
     }
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(1f, 0.9f, 0.4f, 0.6f);
-        Gizmos.DrawWireSphere(transform.position + _originOffset, _currentRadius);
+        Gizmos.DrawWireSphere(Origin, _currentRadius);
     }
 }

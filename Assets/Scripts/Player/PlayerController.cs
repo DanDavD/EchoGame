@@ -62,6 +62,8 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        // Clone InputActionAsset per instance so enabling/disabling maps never cross-affects other players
+        _inputActions = Instantiate(_inputActions);
         _map = _inputActions.FindActionMap(_actionMapName, true);
         _moveAction = _map.FindAction("Move", true);
         _lookAction = _map.FindAction("Look", true);
@@ -70,16 +72,31 @@ public class PlayerController : NetworkBehaviour
 
         if (_cameraPivot == null)
             Debug.LogWarning("[PlayerController] No camera pivot assigned: looking up/down is disabled.", this);
+        else
+        {
+            Camera cam = _cameraPivot.GetComponentInChildren<Camera>(true);
+            if (cam != null)
+            {
+                cam.enabled = false;
+                AudioListener listener = cam.GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = false;
+            }
+        }
     }
 
     public override void OnStartClient()
     {
         base.OnStartClient();
 
+        MeshRenderer mr = GetComponent<MeshRenderer>();
+
         if (base.IsOwner)
         {
             _map?.Enable();
             SetCursorLocked(true);
+
+            // Hide body on local owner so capsule does not clip first-person view
+            if (mr != null) mr.enabled = false;
             
             // Explicitly ENABLE the camera for the owner just in case it was disabled in the prefab
             if (_cameraPivot != null)
@@ -96,6 +113,9 @@ public class PlayerController : NetworkBehaviour
         }
         else
         {
+            // Show body for remote players so they are visible to everyone
+            if (mr != null) mr.enabled = true;
+
             _map?.Disable();
             
             // Disable camera and audio listener for remote players
@@ -191,6 +211,20 @@ public class PlayerController : NetworkBehaviour
             _horizontalVelocity = Vector3.zero;
             _verticalVelocity = 0f;
             _smoothedLook = Vector2.zero;
+        }
+    }
+
+    /// <summary>
+    /// Replicated launch from server to the local owner when caught by an enemy or trap.
+    /// </summary>
+    [ObserversRpc]
+    public void RpcTriggerRagdoll(Vector3 launchVelocity)
+    {
+        if (!base.IsOwner) return;
+        var ragdoll = GetComponent<PlayerRagdoll>();
+        if (ragdoll != null)
+        {
+            ragdoll.TryRagdoll(launchVelocity);
         }
     }
 
