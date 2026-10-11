@@ -6,6 +6,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Comedic Living Relic Personalities (`RelicPersonality.cs` & `RelicBrain.cs`)**: Integrated self-aware, comedic living relics with 4 distinct personality archetypes inspired by *High on Life*:
+  - **The Sarcastic Critic ("Obsidian Bob")**: Cynical meta commentary roasting player cardio, un-shrimping posture, sweating palms, and lack of corner checking.
+  - **The Anxious Coward ("Nervous Nelly")**: Neurotic hyperventilating coward begging players to whisper, panicking when monsters get close, and pre-mourning demise.
+  - **The Dumb Gloop ("Gloop the Box")**: Goofy cartoon babbler making funny squeaks, squelches, burps, boings, and celebrating being an aerodynamic cube.
+  - **The Grumpy Ancient Boomer ("Lord Malakor")**: Pompous celestial sovereign offended by mortal hands touching his divine geometry, threatening to curse players' descendants and Wi-Fi.
+- **Procedural Speech Synthesizer & Doppler Screams (`RelicVoiceSynthesizer.cs`)**:
+  - Runtime waveform synthesis with zero external audio assets, providing customized Banjo-Kazooie/Animal Crossing style speech blips.
+  - Continuous 3D airborne Doppler scream during high-velocity physics launches (25m - 50m arcs), with velocity-dependent pitch modulation and logarithmic rolloff.
+  - Procedural cartoon impact bonks and thuds upon landing.
+- **High on Life Dialogue UI & 3D Speech Bubbles (`RelicDialogueUI.cs`)**:
+  - Screen-space HUD dialogue card with neon archetype accents, typewriter text effect, animated cursor, and speaker badges.
+  - 3D floating world-space speech bubble billboarding above the relic for co-op peer awareness.
+- **Blind Monster Hearing Integration (`INoiseSource`)**:
+  - `RelicBrain` implements `INoiseSource` and registers with `NoiseRegistry`. Screaming relics in mid-air emit 0.95 loudness, actively attracting the blind monster to track the flying projectile.
+- **Testing & Iteration Controls**: Added `[T]` to switch relic personality archetype and `[Y]` to force instant comedic roasts during gameplay.
 - **Living Relics & Physical Carrying System (`RelicCarryable.cs` & `IInteractable.cs`)**: Server-authoritative pickup and physical drop interaction (`E` interact, `G` drop) with smooth camera socket attachment (`CarrySocket`). Physics, collisions, and `NetworkTransform` are toggled seamlessly during carry and re-enabled upon throwing or dropping.
 - **Player Interaction Raycasting (`PlayerInteraction.cs`)**: Owner-client interaction controller performing forward spherecasts, dynamic HUD prompts (`[E] Pick Up ...` / `Carrying: ... [G] Drop`), and ragdoll auto-drop listening to `PlayerRagdoll.OnRagdollStarted`.
 - **Living Relic Prefab & Visuals (`Relic_Test.prefab` & `Echo_Relic.mat`)**: First networked sentient relic prefab registered in `DefaultPrefabObjects.asset` (PrefabId: 2) and `NetworkBootstrap`, sporting a distinctive golden/amber echolocation reveal material.

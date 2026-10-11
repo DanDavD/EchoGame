@@ -208,7 +208,7 @@ namespace EchoProtocol.Player
                 };
 
                 GUI.color = new Color(0.4f, 1f, 0.5f, 1f);
-                GUI.Label(new Rect(20, screenH - 50, 450, 30), $"Carrying: {_carriedRelic.RelicName}  [G] Drop", carriedStyle);
+                GUI.Label(new Rect(20, screenH - 50, 600, 30), $"Carrying: {_carriedRelic.RelicName}  |  [G] Drop  |  [T] Switch Personality  |  [Y] Roast", carriedStyle);
                 GUI.color = Color.white;
             }
         }

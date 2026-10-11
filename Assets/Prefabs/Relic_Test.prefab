@@ -16,6 +16,9 @@ GameObject:
   - component: {fileID: 1140000000000001}
   - component: {fileID: 1140000000000002}
   - component: {fileID: 1140000000000003}
+  - component: {fileID: 1140000000000004}
+  - component: {fileID: 1140000000000005}
+  - component: {fileID: 1140000000000006}
   m_Layer: 0
   m_Name: Relic_Ancient
   m_TagString: Untagged
@@ -202,6 +205,7 @@ MonoBehaviour:
   NetworkBehaviours:
   - {fileID: 1140000000000001}
   - {fileID: 1140000000000003}
+  - {fileID: 1140000000000006}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -259,3 +263,59 @@ MonoBehaviour:
     X: 0
     Y: 0
     Z: 0
+--- !u!114 &1140000000000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddebbb1e34a94042908409f5cfbe9b20, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Relics::RelicVoiceSynthesizer
+  _voiceSource: {fileID: 0}
+  _screamSource: {fileID: 0}
+  _minDistance: 2
+  _maxDistance: 55
+  _dopplerLevel: 1.4
+--- !u!114 &1140000000000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c01bcf9e82fa4a3485fa87e40e00d4de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Relics::RelicDialogueUI
+  _charactersPerSecond: 32
+  _displayLingerSeconds: 2.8
+  _worldBubbleMaxDistance: 30
+  _worldBubbleOffset: {x: 0, y: 0.55, z: 0}
+--- !u!114 &1140000000000006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2add8d36c94b41688e9c77c88a4edd66, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Relics::RelicBrain
+  _componentIndexCache: 2
+  _addedNetworkObject: {fileID: 1140000000000002}
+  _networkObjectCache: {fileID: 1140000000000002}
+  _personality: 0
+  _carryChatterInterval: 16
+  _idleSleepInterval: 28
+  _sprintRoastDuration: 2.2
+  _micRoastThreshold: 0.38
+  _micRoastDuration: 0.7
+  _monsterAlertDistance: 14
+  _flyingVelocityThreshold: 11.5

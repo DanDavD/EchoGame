@@ -63,6 +63,12 @@ namespace EchoProtocol.Interaction
             _carrier.OnChange -= OnCarrierChanged;
         }
 
+        /// <summary>Raised whenever this relic is picked up by a player.</summary>
+        public event System.Action<NetworkObject> OnPickedUp;
+
+        /// <summary>Raised whenever this relic is dropped or launched.</summary>
+        public event System.Action<NetworkObject> OnDropped;
+
         private void OnCarrierChanged(NetworkObject prev, NetworkObject current, bool asServer)
         {
             if (current != null)
@@ -82,6 +88,8 @@ namespace EchoProtocol.Interaction
                         playerInteraction.SetCarriedRelic(this);
                     }
                 }
+
+                OnPickedUp?.Invoke(current);
             }
             else
             {
@@ -97,6 +105,8 @@ namespace EchoProtocol.Interaction
                         playerInteraction.ClearCarriedRelic(this);
                     }
                 }
+
+                OnDropped?.Invoke(prev);
             }
         }
 

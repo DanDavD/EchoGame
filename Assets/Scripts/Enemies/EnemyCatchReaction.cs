@@ -34,7 +34,16 @@ public class EnemyCatchReaction : MonoBehaviour
 
     private void HandleCaught(Transform victim)
     {
-        PlayerRagdoll ragdoll = victim.GetComponentInParent<PlayerRagdoll>();
+        if (victim == null) return;
+
+        // If a carried relic was somehow passed as victim, resolve to carrier
+        var carryable = victim.GetComponentInParent<EchoProtocol.Interaction.RelicCarryable>();
+        if (carryable != null && carryable.IsCarried && carryable.Carrier != null)
+        {
+            victim = carryable.Carrier.transform;
+        }
+
+        var ragdoll = victim.GetComponentInParent<PlayerRagdoll>() ?? victim.GetComponentInChildren<PlayerRagdoll>();
         if (ragdoll == null) return;
 
         Vector3 away = victim.position - transform.position;
@@ -42,7 +51,7 @@ public class EnemyCatchReaction : MonoBehaviour
         away = away.sqrMagnitude < 0.01f ? transform.forward : away.normalized;
         Vector3 launch = away * _knockbackSpeed + Vector3.up * _upSpeed;
 
-        var pc = victim.GetComponentInParent<PlayerController>();
+        var pc = victim.GetComponentInParent<PlayerController>() ?? victim.GetComponentInChildren<PlayerController>();
         if (pc != null && pc.IsSpawned)
         {
             pc.RpcTriggerRagdoll(launch);

@@ -54,6 +54,9 @@ public class PlayerRagdoll : MonoBehaviour
     /// <summary>True while physics owns the body.</summary>
     public bool IsRagdolling { get; private set; }
 
+    /// <summary>True during the post-recovery immunity grace period.</summary>
+    public bool IsImmune => Time.time < _graceUntil;
+
     /// <summary>Last launch velocity applied to this ragdoll.</summary>
     public Vector3 LastLaunchVelocity { get; private set; }
 
@@ -165,29 +168,53 @@ public class PlayerRagdoll : MonoBehaviour
 
     private void Recover()
     {
-        // Get up facing wherever the camera is looking.
-        Vector3 look = _cameraPivot != null ? _cameraPivot.forward : transform.forward;
-        look.y = 0f;
-        if (look.sqrMagnitude < 0.01f) look = Vector3.forward;
-        Quaternion upright = Quaternion.LookRotation(look.normalized, Vector3.up);
-
         // Velocities can only be written while the body is dynamic, so clear them first.
         _rb.linearVelocity = Vector3.zero;
         _rb.angularVelocity = Vector3.zero;
         _rb.isKinematic = true;
         _bodyCollider.enabled = false;
 
-        transform.SetPositionAndRotation(transform.position + Vector3.up * _standUpLift, upright);
+        // Force strictly upright rotation (0 pitch, 0 roll) facing the camera horizontal look direction
+        float yaw = transform.eulerAngles.y;
+        if (_cameraPivot != null)
+        {
+            Vector3 camFwd = _cameraPivot.forward;
+            camFwd.y = 0f;
+            if (camFwd.sqrMagnitude > 0.01f)
+            {
+                yaw = Quaternion.LookRotation(camFwd.normalized, Vector3.up).eulerAngles.y;
+            }
+        }
+        Quaternion upright = Quaternion.Euler(0f, yaw, 0f);
+
+        // Raycast downward to place the 2m capsule cleanly above the floor surface
+        Vector3 pos = transform.position;
+        if (Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down, out RaycastHit hit, 5f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            pos.y = hit.point.y + 1.05f;
+        }
+        else
+        {
+            pos.y += _standUpLift;
+        }
+
+        transform.SetPositionAndRotation(pos, upright);
+        _rb.position = pos;
+        _rb.rotation = upright;
         Physics.SyncTransforms();
 
+        if (_cameraPivot != null)
+        {
+            _cameraPivot.localRotation = Quaternion.identity;
+        }
+
         _characterController.enabled = true;
-        if (_cameraPivot != null) _cameraPivot.localRotation = Quaternion.identity;
         _player.SetControlEnabled(true);
 
         IsRagdolling = false;
         _graceUntil = Time.time + _graceSeconds;
 
-        Debug.Log("[PlayerRagdoll] Back on feet.", this);
+        Debug.Log("[PlayerRagdoll] Back on feet level and upright.", this);
         OnRecovered?.Invoke();
     }
 }
