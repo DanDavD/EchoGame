@@ -43,7 +43,7 @@ public class EnemyBrain : NetworkBehaviour
     [Tooltip("Seconds without hearing anything before giving up the hunt.")]
     [SerializeField] private float _loseTargetTime = 4f;
     [Tooltip("Distance at which a player counts as caught.")]
-    [SerializeField] private float _catchDistance = 1.6f;
+    [SerializeField] private float _catchDistance = 2.2f;
     [Tooltip("Minimum seconds between two catch events.")]
     [SerializeField] private float _catchCooldown = 3f;
 
@@ -55,6 +55,27 @@ public class EnemyBrain : NetworkBehaviour
 
     /// <summary>True if monster AI and movement are frozen for testing.</summary>
     public static bool IsFrozen { get; private set; } = false;
+
+    private static readonly System.Collections.Generic.List<EnemyBrain> _activeEnemies = new System.Collections.Generic.List<EnemyBrain>();
+    /// <summary>Active enemy brains currently in the scene.</summary>
+    public static System.Collections.Generic.IReadOnlyList<EnemyBrain> ActiveEnemies => _activeEnemies;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        _activeEnemies.Clear();
+        IsFrozen = false;
+    }
+
+    private void OnEnable()
+    {
+        if (!_activeEnemies.Contains(this)) _activeEnemies.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        _activeEnemies.Remove(this);
+    }
 
     /// <summary>Toggles freeze state on all active monsters.</summary>
     public static void ToggleFreeze()
@@ -68,9 +89,10 @@ public class EnemyBrain : NetworkBehaviour
         IsFrozen = freeze;
         Debug.Log($"<color=yellow>[EnemyBrain]</color> Monster Frozen: {IsFrozen}");
 
-        var brains = FindObjectsByType<EnemyBrain>(FindObjectsSortMode.None);
-        foreach (var brain in brains)
+        for (int i = 0; i < _activeEnemies.Count; i++)
         {
+            var brain = _activeEnemies[i];
+            if (brain == null) continue;
             if (brain.IsServerStarted || !brain.IsSpawned)
             {
                 brain.ApplyFreeze(freeze);
@@ -320,24 +342,61 @@ public class EnemyBrain : NetworkBehaviour
         _stunUntil = Time.time + seconds;
     }
 
-    /// <summary>Reports a catch when the enemy touches any noise owner (blind, but not numb).</summary>
+    /// <summary>Reports a catch when the enemy touches any player or noise owner (blind, but not numb).</summary>
     private void TryCatchPlayers()
     {
         if (Time.time < _nextCatchTime) return;
 
-        var sources = NoiseRegistry.Sources;
         float sqrCatch = _catchDistance * _catchDistance;
+        Vector3 myPos = transform.position;
+
+        // 1. Direct proximity check against all active players (catches players even if completely silent)
+        var players = PlayerController.ActivePlayers;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pc = players[i];
+            if (pc == null) continue;
+
+            var ragdoll = pc.GetComponent<PlayerRagdoll>();
+            if (ragdoll != null && (ragdoll.IsRagdolling || ragdoll.IsImmune)) continue;
+
+            Vector3 delta = pc.transform.position - myPos;
+            delta.y = 0f;
+            if (delta.sqrMagnitude <= sqrCatch)
+            {
+                _nextCatchTime = Time.time + _catchCooldown;
+                Debug.Log($"[EnemyBrain] {name} caught player {pc.name}!", this);
+                OnPlayerCaught?.Invoke(pc.transform);
+                return;
+            }
+        }
+
+        // 2. Check noise sources (and properly resolve carried relics to their carrier player)
+        var sources = NoiseRegistry.Sources;
         for (int i = 0; i < sources.Count; i++)
         {
-            Transform owner = sources[i].Owner;
-            Vector3 delta = owner.position - transform.position;
-            delta.y = 0f;
-            if (delta.sqrMagnitude > sqrCatch) continue;
+            var src = sources[i];
+            if (src == null || src.Owner == null) continue;
 
-            _nextCatchTime = Time.time + _catchCooldown;
-            Debug.Log($"[EnemyBrain] {name} caught {owner.name}!", this);
-            OnPlayerCaught?.Invoke(owner);
-            return;
+            Transform target = src.Owner;
+            var carryable = target.GetComponent<EchoProtocol.Interaction.RelicCarryable>();
+            if (carryable != null && carryable.IsCarried && carryable.Carrier != null)
+            {
+                target = carryable.Carrier.transform;
+            }
+
+            var ragdoll = target.GetComponentInParent<PlayerRagdoll>();
+            if (ragdoll == null || ragdoll.IsRagdolling || ragdoll.IsImmune) continue;
+
+            Vector3 delta = target.position - myPos;
+            delta.y = 0f;
+            if (delta.sqrMagnitude <= sqrCatch)
+            {
+                _nextCatchTime = Time.time + _catchCooldown;
+                Debug.Log($"[EnemyBrain] {name} caught {target.name} via noise source!", this);
+                OnPlayerCaught?.Invoke(target);
+                return;
+            }
         }
     }
 

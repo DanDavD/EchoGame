@@ -22,6 +22,35 @@ public class PlayerController : NetworkBehaviour
     /// <summary>Camera pivot transform for raycasts and view orientation.</summary>
     public Transform CameraPivot => _cameraPivot;
 
+    private static readonly System.Collections.Generic.List<PlayerController> _activePlayers = new System.Collections.Generic.List<PlayerController>();
+    /// <summary>Active player controllers currently spawned in the scene.</summary>
+    public static System.Collections.Generic.IReadOnlyList<PlayerController> ActivePlayers => _activePlayers;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPlayerStatics()
+    {
+        _activePlayers.Clear();
+    }
+
+    private void OnEnable()
+    {
+        if (!_activePlayers.Contains(this)) _activePlayers.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        _activePlayers.Remove(this);
+    }
+
+    /// <summary>Horizontal movement speed (m/s).</summary>
+    public float CurrentSpeed => _horizontalVelocity.magnitude;
+
+    /// <summary>True if the sprint action is currently held down.</summary>
+    public bool IsSprinting => _sprintAction != null && _sprintAction.IsPressed();
+
+    /// <summary>Full 3D movement velocity.</summary>
+    public Vector3 CurrentVelocity => _horizontalVelocity + Vector3.up * _verticalVelocity;
+
     [Header("Movement (clunky on purpose)")]
     [SerializeField] private float _walkSpeed = 3.5f;
     [SerializeField] private float _sprintSpeed = 5.5f;
@@ -219,6 +248,15 @@ public class PlayerController : NetworkBehaviour
             _horizontalVelocity = Vector3.zero;
             _verticalVelocity = 0f;
             _smoothedLook = Vector2.zero;
+            _pitch = 0f;
+
+            // Enforce completely upright orientation: 0 pitch, 0 roll
+            transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+
+            if (_cameraPivot != null)
+            {
+                _cameraPivot.localRotation = Quaternion.identity;
+            }
         }
     }
 
