@@ -212,7 +212,7 @@ namespace EchoProtocol.Interaction
             _rb.isKinematic = false;
             _col.enabled = true;
             _rb.linearVelocity = throwVelocity;
-            _rb.angularVelocity = Random.onUnitSphere * (throwVelocity.sqrMagnitude > 80f ? 20f : 4f);
+            _rb.angularVelocity = Random.onUnitSphere * (throwVelocity.sqrMagnitude > 80f ? 16f : 4f);
         }
 
         /// <summary>
