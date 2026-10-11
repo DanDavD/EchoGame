@@ -2,6 +2,7 @@ using UnityEngine;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using FishNet.Component.Transforming;
+using EchoProtocol.Player;
 
 namespace EchoProtocol.Interaction
 {
