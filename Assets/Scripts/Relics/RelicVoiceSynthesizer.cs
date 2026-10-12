@@ -16,6 +16,7 @@ namespace EchoProtocol.Relics
         [Header("Audio Sources")]
         [SerializeField] private AudioSource _voiceSource;
         [SerializeField] private AudioSource _screamSource;
+        [SerializeField] private AudioSource _choirSource;
 
         [Header("3D Spatial Settings")]
         [SerializeField] private float _minDistance = 2f;
@@ -36,6 +37,9 @@ namespace EchoProtocol.Relics
         private readonly Dictionary<RelicPersonalityType, AudioClip> _cachedImpactClips =
             new Dictionary<RelicPersonalityType, AudioClip>();
 
+        private readonly Dictionary<RelicPersonalityType, AudioClip> _cachedChoirClips =
+            new Dictionary<RelicPersonalityType, AudioClip>();
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody>();
@@ -51,6 +55,14 @@ namespace EchoProtocol.Relics
                 _screamSource = screamGo.AddComponent<AudioSource>();
             }
             ConfigureSource(_screamSource, true);
+
+            if (_choirSource == null)
+            {
+                var choirGo = new GameObject("ChoirAudioSource");
+                choirGo.transform.SetParent(transform, false);
+                _choirSource = choirGo.AddComponent<AudioSource>();
+            }
+            ConfigureSource(_choirSource, true);
 
             GenerateAllProceduralClips();
         }
@@ -135,6 +147,34 @@ namespace EchoProtocol.Relics
         }
 
         /// <summary>
+        /// Starts the continuous harmonious alien choir drone when docked in the Altar.
+        /// </summary>
+        public void StartSymphonyChoir(RelicPersonalityType personality)
+        {
+            if (_choirSource == null) return;
+            _currentPersonality = personality;
+
+            if (_cachedChoirClips.TryGetValue(personality, out var clip))
+            {
+                _choirSource.clip = clip;
+                _choirSource.volume = 0.85f;
+                _choirSource.pitch = 1.0f;
+                _choirSource.Play();
+            }
+        }
+
+        /// <summary>
+        /// Stops the altar choir playback.
+        /// </summary>
+        public void StopSymphonyChoir()
+        {
+            if (_choirSource != null && _choirSource.isPlaying)
+            {
+                _choirSource.Stop();
+            }
+        }
+
+        /// <summary>
         /// Plays a procedural cartoon impact thud/clonk upon landing.
         /// </summary>
         public void PlayImpactBonk(RelicPersonalityType personality, float volume = 1f)
@@ -169,6 +209,9 @@ namespace EchoProtocol.Relics
 
                 // 3. Generate impact bonk clip
                 _cachedImpactClips[type] = GenerateImpactClip(type);
+
+                // 4. Generate seamless looping symphony choir clip (2.0 seconds)
+                _cachedChoirClips[type] = GenerateChoirClip(type);
             }
         }
 
@@ -341,6 +384,61 @@ namespace EchoProtocol.Relics
             }
 
             var clip = AudioClip.Create($"Impact_{type}", totalSamples, 1, SampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateChoirClip(RelicPersonalityType type)
+        {
+            float duration = 2.0f;
+            int totalSamples = Mathf.RoundToInt(SampleRate * duration);
+            float[] samples = new float[totalSamples];
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float t = (float)i / SampleRate;
+                float progress = (float)i / totalSamples;
+
+                // Seamless loop envelope window at edges to prevent clipping clicks
+                float edgeFade = Mathf.Clamp01(Mathf.Sin(progress * Mathf.PI) * 40f);
+
+                float sample = 0f;
+                switch (type)
+                {
+                    case RelicPersonalityType.SarcasticCritic:
+                        // C4 (261.63 Hz) & E4 (329.63 Hz) dry monotone synthesizer hum
+                        float c4 = Mathf.Sin(2f * Mathf.PI * 261.63f * t);
+                        float e4 = Mathf.Sin(2f * Mathf.PI * 329.63f * t);
+                        sample = (c4 * 0.6f + e4 * 0.4f);
+                        break;
+
+                    case RelicPersonalityType.AnxiousCoward:
+                        // High A4 (440.0 Hz) soprano alien with nervous 7Hz vibrato
+                        float vib = Mathf.Sin(2f * Mathf.PI * 7.5f * t) * 12f;
+                        sample = Mathf.Sin(2f * Mathf.PI * (440f + vib) * t) * 0.7f;
+                        sample += Mathf.Sin(2f * Mathf.PI * (880f + vib * 1.5f) * t) * 0.25f;
+                        break;
+
+                    case RelicPersonalityType.DumbGloop:
+                        // E3 (164.81 Hz) goofy bouncy choir chanting with subtle pulsing volume tremolo
+                        float tremolo = 0.65f + 0.35f * Mathf.Sin(2f * Mathf.PI * 3f * t);
+                        float gloopWave = Mathf.Sin(2f * Mathf.PI * 164.81f * t) + 0.3f * Mathf.Sin(2f * Mathf.PI * 329.62f * t);
+                        sample = gloopWave * tremolo * 0.75f;
+                        break;
+
+                    case RelicPersonalityType.GrumpyElder:
+                        // A2 (110.0 Hz) deep cosmic Gregorian drone with odd throat harmonics (330Hz, 550Hz)
+                        float a2 = Mathf.Sin(2f * Mathf.PI * 110f * t);
+                        float h3 = Mathf.Sin(2f * Mathf.PI * 330f * t) * 0.45f;
+                        float h5 = Mathf.Sin(2f * Mathf.PI * 550f * t) * 0.25f;
+                        sample = (a2 * 0.6f + h3 + h5) * 0.8f;
+                        break;
+                }
+
+                samples[i] = sample * edgeFade * 0.65f;
+            }
+
+            var clip = AudioClip.Create($"Choir_{type}", totalSamples, 1, SampleRate, false);
             clip.SetData(samples, 0);
             return clip;
         }

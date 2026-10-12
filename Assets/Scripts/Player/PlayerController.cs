@@ -102,22 +102,41 @@ public class PlayerController : NetworkBehaviour
         _jumpAction = _map.FindAction("Jump", true);
         _sprintAction = _map.FindAction("Sprint", true);
 
-        if (_cameraPivot == null)
-            Debug.LogWarning("[PlayerController] No camera pivot assigned: looking up/down is disabled.", this);
-        else
+        if (GetComponent<EchoProtocol.Player.PlayerInteraction>() == null)
+        {
+            gameObject.AddComponent<EchoProtocol.Player.PlayerInteraction>();
+        }
+
+        // Ensure an AudioListener is active from the very first frame (offline sandbox).
+        // Remote clones in multiplayer get theirs disabled again in OnStartClient.
+        EnableLocalPlayerCamera();
+    }
+
+    private void Start()
+    {
+        // When running in offline/singleplayer testing mode (unspawned by network),
+        // enable the camera and input maps immediately so the scene renders.
+        if (!IsSpawned)
+        {
+            EnableLocalPlayerCamera();
+            _map?.Enable();
+            SetCursorLocked(true);
+        }
+    }
+
+    private void EnableLocalPlayerCamera()
+    {
+        if (_cameraPivot != null)
         {
             Camera cam = _cameraPivot.GetComponentInChildren<Camera>(true);
             if (cam != null)
             {
-                cam.enabled = false;
+                cam.gameObject.SetActive(true);
+                cam.enabled = true;
                 AudioListener listener = cam.GetComponent<AudioListener>();
-                if (listener != null) listener.enabled = false;
+                if (listener == null) listener = cam.gameObject.AddComponent<AudioListener>();
+                listener.enabled = true;
             }
-        }
-
-        if (GetComponent<EchoProtocol.Player.PlayerInteraction>() == null)
-        {
-            gameObject.AddComponent<EchoProtocol.Player.PlayerInteraction>();
         }
     }
 
@@ -135,18 +154,7 @@ public class PlayerController : NetworkBehaviour
             // Hide body on local owner so capsule does not clip first-person view
             if (mr != null) mr.enabled = false;
             
-            // Explicitly ENABLE the camera for the owner just in case it was disabled in the prefab
-            if (_cameraPivot != null)
-            {
-                Camera cam = _cameraPivot.GetComponentInChildren<Camera>(true);
-                if (cam != null)
-                {
-                    cam.gameObject.SetActive(true);
-                    cam.enabled = true;
-                    AudioListener listener = cam.GetComponent<AudioListener>();
-                    if (listener != null) listener.enabled = true;
-                }
-            }
+            EnableLocalPlayerCamera();
         }
         else
         {
@@ -182,7 +190,7 @@ public class PlayerController : NetworkBehaviour
 
     private void Update()
     {
-        if (!base.IsOwner) return;
+        if (IsSpawned && !base.IsOwner) return;
 
         // Escape frees the cursor in the editor; click the Game view to lock it again.
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) SetCursorLocked(false);

@@ -6,6 +6,10 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
+using EchoProtocol.Altar;
+using EchoProtocol.Extraction;
+using EchoProtocol.Relics;
+using EchoProtocol.Interaction;
 
 /// <summary>
 /// One-click builder for the Echo Protocol sandbox prototype.
@@ -51,6 +55,10 @@ public static class EchoSandboxBuilder
         Transform floor = arenaObj.transform.Find("Floor");
         if (floor != null && floor.localScale.x >= 110f && arenaObj.transform.Find("Pillar_1") == null)
         {
+            if (GameObject.Find("Altar") == null)
+            {
+                SetupAltarAndEscapePortalMenuItem();
+            }
             return; // Already expanded and cleared
         }
 
@@ -104,6 +112,7 @@ public static class EchoSandboxBuilder
         BuildNavMesh(arena.gameObject);
         BuildPlayer(actions);
         BuildEnemy(enemyMat);
+        SetupAltarAndEscapePortal(arena, propMat);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -193,6 +202,185 @@ public static class EchoSandboxBuilder
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
         Debug.Log("<color=green>[EchoSandboxBuilder]</color> Arena expanded to 120x120m and obstacles cleared successfully!");
+    }
+
+    [MenuItem("Echo Protocol/Setup Altar and Escape Portal")]
+    public static void SetupAltarAndEscapePortalMenuItem()
+    {
+        var scene = EditorSceneManager.GetActiveScene();
+        if (scene.path != ScenePath)
+        {
+            scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
+        Texture2D checker = CreateCheckerTexture();
+        Material propMat = GetOrCreateMaterial("Assets/Art/Materials/Echo_Prop.mat", shader, checker, new Color(0.45f, 0.65f, 0.55f), 1f);
+        var arenaObj = GameObject.Find("Arena");
+        Transform arena = arenaObj != null ? arenaObj.transform : null;
+
+        SetupAltarAndEscapePortal(arena, propMat);
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        AssetDatabase.SaveAssets();
+        Debug.Log("<color=green>[EchoSandboxBuilder]</color> Altar, Sockets, Escape Portal, Game Manager and Relics successfully configured!");
+    }
+
+    public static void SetupAltarAndEscapePortal(Transform arena, Material propMat)
+    {
+        // 1. Central Altar
+        var existingAltar = GameObject.Find("Altar");
+        if (existingAltar != null) Object.DestroyImmediate(existingAltar);
+
+        var altarObj = new GameObject("Altar");
+        if (arena != null) altarObj.transform.SetParent(arena, false);
+        altarObj.transform.position = Vector3.zero;
+
+        // Base platform
+        var basePlatform = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        basePlatform.name = "Altar_Base";
+        basePlatform.transform.SetParent(altarObj.transform, false);
+        basePlatform.transform.position = new Vector3(0f, 0.2f, 0f);
+        basePlatform.transform.localScale = new Vector3(6f, 0.4f, 6f);
+        if (propMat != null) basePlatform.GetComponent<MeshRenderer>().sharedMaterial = propMat;
+
+        // Central Monolith
+        var monolith = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        monolith.name = "Altar_Monolith";
+        monolith.transform.SetParent(altarObj.transform, false);
+        monolith.transform.position = new Vector3(0f, 1.4f, 0f);
+        monolith.transform.localScale = new Vector3(1.6f, 2.4f, 1.6f);
+        if (propMat != null) monolith.GetComponent<MeshRenderer>().sharedMaterial = propMat;
+
+        // Central Altar Light
+        var altarLightGo = new GameObject("Altar_CentralLight");
+        altarLightGo.transform.SetParent(altarObj.transform, false);
+        altarLightGo.transform.position = new Vector3(0f, 2.8f, 0f);
+        var altarLight = altarLightGo.AddComponent<Light>();
+        altarLight.type = LightType.Point;
+        altarLight.color = new Color(0.2f, 0.4f, 0.8f);
+        altarLight.range = 22f;
+        altarLight.intensity = 3.5f;
+
+        var altarReceptacle = altarObj.AddComponent<AltarReceptacle>();
+
+        // Wire serialized fields on AltarReceptacle
+        var receptacleSo = new SerializedObject(altarReceptacle);
+        receptacleSo.FindProperty("_centralAltarLight").objectReferenceValue = altarLight;
+        receptacleSo.FindProperty("_requiredSockets").intValue = 3;
+
+        // 3 Pedestal Sockets around the altar
+        Vector3[] socketOffsets = new[]
+        {
+            new Vector3(0f, 0f, 2.2f),
+            new Vector3(1.9f, 0f, -1.1f),
+            new Vector3(-1.9f, 0f, -1.1f)
+        };
+
+        var socketsProp = receptacleSo.FindProperty("_sockets");
+        socketsProp.ClearArray();
+
+        for (int i = 0; i < socketOffsets.Length; i++)
+        {
+            Vector3 offset = socketOffsets[i];
+            var socketObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            socketObj.name = $"Socket_{i + 1}";
+            socketObj.transform.SetParent(altarObj.transform, false);
+            socketObj.transform.position = new Vector3(offset.x, 0.5f, offset.z);
+            socketObj.transform.localScale = new Vector3(0.9f, 1.0f, 0.9f);
+            if (propMat != null) socketObj.GetComponent<MeshRenderer>().sharedMaterial = propMat;
+
+            // Socket Light
+            var sLightGo = new GameObject($"SocketLight_{i + 1}");
+            sLightGo.transform.SetParent(socketObj.transform, false);
+            sLightGo.transform.localPosition = new Vector3(0f, 0.7f, 0f);
+            var sLight = sLightGo.AddComponent<Light>();
+            sLight.type = LightType.Point;
+            sLight.color = new Color(0.2f, 0.7f, 1f);
+            sLight.range = 5f;
+            sLight.intensity = 2f;
+
+            // Mount Point
+            var mountGo = new GameObject("MountPoint");
+            mountGo.transform.SetParent(socketObj.transform, false);
+            mountGo.transform.localPosition = new Vector3(0f, 0.65f, 0f);
+
+            var socketComp = socketObj.AddComponent<AltarSocket>();
+            var socketSo = new SerializedObject(socketComp);
+            socketSo.FindProperty("_socketMountPoint").objectReferenceValue = mountGo.transform;
+            socketSo.FindProperty("_socketLight").objectReferenceValue = sLight;
+            socketSo.FindProperty("_parentReceptacle").objectReferenceValue = altarReceptacle;
+            socketSo.ApplyModifiedPropertiesWithoutUndo();
+
+            socketsProp.InsertArrayElementAtIndex(i);
+            socketsProp.GetArrayElementAtIndex(i).objectReferenceValue = socketComp;
+        }
+        receptacleSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2. Escape Portal on North Wall
+        var existingPortal = GameObject.Find("EscapePortal");
+        if (existingPortal != null) Object.DestroyImmediate(existingPortal);
+
+        var portalRoot = new GameObject("EscapePortal");
+        if (arena != null) portalRoot.transform.SetParent(arena, false);
+        portalRoot.transform.position = new Vector3(0f, 0f, 59.8f);
+
+        // Frame Pillars & Header
+        Box("Portal_Pillar_L", portalRoot.transform, new Vector3(-2.8f, 3f, 59.8f), new Vector3(0.8f, 6f, 0.8f), propMat);
+        Box("Portal_Pillar_R", portalRoot.transform, new Vector3(2.8f, 3f, 59.8f), new Vector3(0.8f, 6f, 0.8f), propMat);
+        Box("Portal_Lintel", portalRoot.transform, new Vector3(0f, 6.4f, 59.8f), new Vector3(6.4f, 0.8f, 0.8f), propMat);
+
+        // Portal Gateway Trigger
+        var gateway = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        gateway.name = "Portal_Gateway";
+        gateway.transform.SetParent(portalRoot.transform, false);
+        gateway.transform.position = new Vector3(0f, 3f, 59.8f);
+        gateway.transform.localScale = new Vector3(4.8f, 5.8f, 0.4f);
+        if (propMat != null) gateway.GetComponent<MeshRenderer>().sharedMaterial = propMat;
+
+        var gateCol = gateway.GetComponent<BoxCollider>();
+        if (gateCol != null) gateCol.isTrigger = true;
+
+        var pLightGo = new GameObject("PortalLight");
+        pLightGo.transform.SetParent(gateway.transform, false);
+        pLightGo.transform.localPosition = Vector3.zero;
+        var pLight = pLightGo.AddComponent<Light>();
+        pLight.type = LightType.Point;
+        pLight.color = new Color(0.2f, 0.95f, 1f);
+        pLight.range = 18f;
+        pLight.intensity = 1f;
+
+        var portalComp = gateway.AddComponent<EscapePortal>();
+        var portalSo = new SerializedObject(portalComp);
+        portalSo.FindProperty("_portalTrigger").objectReferenceValue = gateCol;
+        portalSo.FindProperty("_portalLight").objectReferenceValue = pLight;
+        portalSo.FindProperty("_portalVfxRenderer").objectReferenceValue = gateway.GetComponent<MeshRenderer>();
+        portalSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // 3. GameExtractionManager
+        var existingGm = GameObject.Find("GameManager");
+        if (existingGm != null) Object.DestroyImmediate(existingGm);
+
+        var gmObj = new GameObject("GameManager");
+        var extractionMgr = gmObj.AddComponent<GameExtractionManager>();
+        var gmSo = new SerializedObject(extractionMgr);
+        gmSo.FindProperty("_altar").objectReferenceValue = altarReceptacle;
+        gmSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // 4. Clean static relics (spawned at runtime by GameExtractionManager)
+        SpawnSandboxRelics(arena);
+    }
+
+    private static void SpawnSandboxRelics(Transform arena)
+    {
+        // Destroy any static scene relics so FishNet does not complain about un-reserialized scene objects.
+        // GameExtractionManager automatically spawns runtime instances with correct personalities upon Start().
+        var existingRelics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (var r in existingRelics)
+        {
+            if (r != null) Object.DestroyImmediate(r.gameObject);
+        }
     }
 
     // ------------------------------------------------------------------------------------------

@@ -25,12 +25,16 @@ namespace EchoProtocol.Interaction
 
         /// <summary>Networked reference to the player currently carrying this relic.</summary>
         private readonly SyncVar<NetworkObject> _carrier = new SyncVar<NetworkObject>();
+        private GameObject _localCarrierFallback;
 
         /// <summary>True if this relic is currently in a player's hands.</summary>
-        public bool IsCarried => _carrier.Value != null;
+        public bool IsCarried => _carrier.Value != null || _localCarrierFallback != null;
+
+        /// <summary>True if this relic has been installed into an altar receptacle.</summary>
+        public bool IsLockedInAltar { get; private set; }
 
         /// <summary>The player currently holding this relic, or null.</summary>
-        public NetworkObject Carrier => _carrier.Value;
+        public NetworkObject Carrier => _carrier.Value != null ? _carrier.Value : (_localCarrierFallback != null ? _localCarrierFallback.GetComponent<NetworkObject>() : null);
 
         /// <summary>Public display name of this relic.</summary>
         public string RelicName => _relicName;
@@ -112,7 +116,7 @@ namespace EchoProtocol.Interaction
 
         private void LateUpdate()
         {
-            if (!IsCarried) return;
+            if (!IsCarried || IsLockedInAltar) return;
 
             if (IsServerStarted && (_carrier.Value == null || !_carrier.Value.IsSpawned))
             {
@@ -120,7 +124,18 @@ namespace EchoProtocol.Interaction
                 return;
             }
 
-            Transform targetSocket = GetCarrierSocket(_carrier.Value);
+            Transform targetSocket = null;
+            if (_carrier.Value != null)
+            {
+                targetSocket = GetCarrierSocket(_carrier.Value);
+            }
+            else if (_localCarrierFallback != null)
+            {
+                var pi = _localCarrierFallback.GetComponent<PlayerInteraction>();
+                if (pi != null && pi.CarrySocket != null) targetSocket = pi.CarrySocket;
+                else targetSocket = _localCarrierFallback.transform;
+            }
+
             if (targetSocket != null)
             {
                 // Directly glue to socket position & rotation
@@ -152,12 +167,18 @@ namespace EchoProtocol.Interaction
         /// <inheritdoc/>
         public bool CanInteract(PlayerController player)
         {
-            if (player == null || !player.IsSpawned) return false;
+            if (player == null || IsLockedInAltar) return false;
 
             if (IsCarried)
             {
-                // Only the carrier can drop it directly via interact
-                return _carrier.Value == player.NetworkObject;
+                if (IsSpawned && player.IsSpawned)
+                {
+                    return _carrier.Value == player.NetworkObject;
+                }
+                else
+                {
+                    return _localCarrierFallback == player.gameObject;
+                }
             }
 
             // Can pick up only if the player isn't already holding a relic
@@ -174,16 +195,76 @@ namespace EchoProtocol.Interaction
 
             if (IsCarried)
             {
-                if (_carrier.Value == player.NetworkObject)
+                Vector3 throwDir = player.CameraPivot != null ? player.CameraPivot.forward : player.transform.forward;
+                Vector3 impulse = throwDir * _throwForce + Vector3.up * 1.5f;
+
+                if (IsSpawned && player.IsSpawned)
                 {
-                    Vector3 throwDir = player.CameraPivot != null ? player.CameraPivot.forward : player.transform.forward;
-                    ServerRequestDrop(throwDir * _throwForce + Vector3.up * 1.5f);
+                    ServerRequestDrop(impulse);
+                }
+                else
+                {
+                    LocalDrop(impulse);
                 }
             }
             else
             {
-                ServerRequestPickup(player.NetworkObject);
+                if (IsSpawned && player.IsSpawned)
+                {
+                    ServerRequestPickup(player.NetworkObject);
+                }
+                else
+                {
+                    LocalPickup(player);
+                }
             }
+        }
+
+        private void LocalPickup(PlayerController player)
+        {
+            _localCarrierFallback = player.gameObject;
+            if (_col != null) _col.enabled = false;
+            if (_rb != null)
+            {
+                _rb.isKinematic = true;
+                _rb.linearVelocity = Vector3.zero;
+                _rb.angularVelocity = Vector3.zero;
+            }
+
+            var playerInteraction = player.GetComponent<PlayerInteraction>();
+            if (playerInteraction != null)
+            {
+                playerInteraction.SetCarriedRelic(this);
+            }
+
+            var netObj = player.GetComponent<NetworkObject>();
+            OnPickedUp?.Invoke(netObj);
+        }
+
+        private void LocalDrop(Vector3 throwVelocity)
+        {
+            var prev = _localCarrierFallback;
+            _localCarrierFallback = null;
+
+            if (prev != null)
+            {
+                var playerInteraction = prev.GetComponent<PlayerInteraction>();
+                if (playerInteraction != null)
+                {
+                    playerInteraction.ClearCarriedRelic(this);
+                }
+            }
+
+            if (_col != null) _col.enabled = true;
+            if (_rb != null)
+            {
+                _rb.isKinematic = false;
+                _rb.linearVelocity = throwVelocity;
+                _rb.angularVelocity = Random.onUnitSphere * 4f;
+            }
+
+            var netObj = prev != null ? prev.GetComponent<NetworkObject>() : null;
+            OnDropped?.Invoke(netObj);
         }
 
         /// <summary>
@@ -230,7 +311,38 @@ namespace EchoProtocol.Interaction
         /// </summary>
         public void ForceDrop(Vector3 impulse)
         {
-            ServerRequestDrop(impulse);
+            if (IsSpawned)
+            {
+                ServerRequestDrop(impulse);
+            }
+            else
+            {
+                LocalDrop(impulse);
+            }
+        }
+
+        /// <summary>
+        /// Permanently locks this relic onto an altar socket mount.
+        /// </summary>
+        public void LockToAltar(Transform socketMount)
+        {
+            IsLockedInAltar = true;
+            _localCarrierFallback = null;
+            if (IsServerStarted)
+            {
+                _carrier.Value = null;
+            }
+
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector3.zero;
+                _rb.angularVelocity = Vector3.zero;
+                _rb.isKinematic = true;
+            }
+            if (_col != null) _col.enabled = false;
+
+            transform.SetPositionAndRotation(socketMount.position, socketMount.rotation);
+            transform.SetParent(socketMount, true);
         }
     }
 }
