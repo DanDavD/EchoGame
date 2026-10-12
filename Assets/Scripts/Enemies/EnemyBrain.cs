@@ -130,6 +130,30 @@ public class EnemyBrain : NetworkBehaviour
         }
     }
 
+    /// <summary>Puts all active monsters into an enraged, permanent hunt state.</summary>
+    public static void EnrageAll(float speed = 7.0f)
+    {
+        for (int i = 0; i < _activeEnemies.Count; i++)
+        {
+            var brain = _activeEnemies[i];
+            if (brain == null) continue;
+            brain.Enrage(speed);
+        }
+    }
+
+    /// <summary>Forces this enemy into an enraged hunt state with increased speed for the extraction climax.</summary>
+    public void Enrage(float speed = 7.0f)
+    {
+        _huntSpeed = speed;
+        _loseTargetTime = 99999f;
+        if (_agent != null && _agent.isOnNavMesh)
+        {
+            _agent.speed = _huntSpeed;
+        }
+        EnterState(EnemyState.Hunt);
+        Debug.Log($"<color=red>[EnemyBrain]</color> {name} is ENRAGED! Speed: {_huntSpeed} m/s", this);
+    }
+
     /// <summary>Raised on every transition: (previous, new).</summary>
     public event System.Action<EnemyState, EnemyState> OnStateChanged;
 

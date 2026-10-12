@@ -35,7 +35,7 @@ namespace EchoProtocol.Relics
 
         // INoiseSource implementation
         private float _currentNoiseLevel;
-        public Transform Owner => transform;
+        Transform INoiseSource.Owner => transform;
         public float NoiseLevel01 => _currentNoiseLevel;
 
         // Runtime state trackers
@@ -45,6 +45,7 @@ namespace EchoProtocol.Relics
         private float _micTimer;
         private float _monsterReactionCooldown;
         private bool _isAirborneFlying;
+        private bool _isChoirActive;
         private float _noiseDecayTimer;
 
         // Cached carrier components
@@ -143,8 +144,12 @@ namespace EchoProtocol.Relics
             // Debug hotkeys for testing personality and dialogue
             HandleDebugKeys();
 
-            // Decay noise level smoothly
-            if (_noiseDecayTimer > 0f)
+            // Maintain high continuous noise level during choir, or decay noise smoothly
+            if (_isChoirActive)
+            {
+                _currentNoiseLevel = 0.6f;
+            }
+            else if (_noiseDecayTimer > 0f)
             {
                 _noiseDecayTimer -= Time.deltaTime;
                 if (_noiseDecayTimer <= 0f && !_isAirborneFlying)
@@ -162,7 +167,7 @@ namespace EchoProtocol.Relics
             {
                 UpdateCarriedState();
             }
-            else
+            else if (!_carryable.IsLockedInAltar)
             {
                 UpdateUnattendedState();
             }
@@ -333,6 +338,47 @@ namespace EchoProtocol.Relics
             {
                 _currentNoiseLevel = 0.08f;
                 _noiseDecayTimer = 3f;
+            }
+        }
+
+        /// <summary>
+        /// Initiates the symphony choir on this relic when docked in the Altar.
+        /// </summary>
+        public void StartSymphonyChoir()
+        {
+            _isChoirActive = true;
+            _currentNoiseLevel = 0.6f;
+
+            if (IsSpawned)
+            {
+                RpcStartSymphonyChoir();
+            }
+            else
+            {
+                _synthesizer.StartSymphonyChoir(_personality);
+            }
+        }
+
+        [ObserversRpc]
+        private void RpcStartSymphonyChoir()
+        {
+            _isChoirActive = true;
+            _currentNoiseLevel = 0.6f;
+            if (_synthesizer != null)
+            {
+                _synthesizer.StartSymphonyChoir(_personality);
+            }
+        }
+
+        /// <summary>
+        /// Stops the symphony choir drone.
+        /// </summary>
+        public void StopSymphonyChoir()
+        {
+            _isChoirActive = false;
+            if (_synthesizer != null)
+            {
+                _synthesizer.StopSymphonyChoir();
             }
         }
 

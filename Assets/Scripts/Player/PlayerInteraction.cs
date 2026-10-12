@@ -12,7 +12,7 @@ namespace EchoProtocol.Player
     public class PlayerInteraction : MonoBehaviour
     {
         [Header("Interaction Settings")]
-        [SerializeField] private float _interactRange = 2.8f;
+        [SerializeField] private float _interactRange = 3.6f;
         [SerializeField] private LayerMask _interactLayers = ~0; // Everything by default
         [SerializeField] private Transform _carrySocket;
 
@@ -88,7 +88,8 @@ namespace EchoProtocol.Player
         private void Update()
         {
             // Only the local owner client should process interaction inputs
-            if (_playerController == null || !_playerController.IsSpawned || !_playerController.IsOwner) return;
+            if (_playerController == null) return;
+            if (_playerController.IsSpawned && !_playerController.IsOwner) return;
 
             DetectInteractable();
             HandleInput();
@@ -112,12 +113,17 @@ namespace EchoProtocol.Player
         {
             if (Keyboard.current == null) return;
 
-            // E key: Interact with hovered object or drop carried relic
+            // E key: Interact with hovered object
             if (Keyboard.current.eKey.wasPressedThisFrame)
             {
-                if (_hoveredInteractable != null && _hoveredInteractable.CanInteract(_playerController))
+                if (_hoveredInteractable != null)
                 {
-                    _hoveredInteractable.Interact(_playerController);
+                    if (_hoveredInteractable.CanInteract(_playerController))
+                    {
+                        _hoveredInteractable.Interact(_playerController);
+                    }
+                    // If looking at an interactable that cannot interact (e.g. occupied socket),
+                    // don't drop the carried item.
                 }
                 else if (_carriedRelic != null)
                 {
@@ -174,7 +180,8 @@ namespace EchoProtocol.Player
 
         private void OnGUI()
         {
-            if (_playerController == null || !_playerController.IsSpawned || !_playerController.IsOwner) return;
+            if (_playerController == null) return;
+            if (_playerController.IsSpawned && !_playerController.IsOwner) return;
 
             int screenW = Screen.width;
             int screenH = Screen.height;

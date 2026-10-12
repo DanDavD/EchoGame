@@ -6,7 +6,30 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **Comedic Living Relic Personalities (`RelicPersonality.cs` & `RelicBrain.cs`)**: Integrated self-aware, comedic living relics with 4 distinct personality archetypes inspired by *High on Life*:
+- **Central Altar & Receptacle System (`AltarReceptacle.cs` & `AltarSocket.cs`)**:
+  - Interactive pedestal sockets implementing `IInteractable`, allowing players carrying living relics to lock them into the altar with `[E]`.
+  - Individual socket state tracking, visual glowing lights (cyan dormant -> golden active), and automatic completion detection.
+  - Sentient relics trigger unique `AltarPlaced` comedic dialogues upon being docked.
+- **Offline & Standalone Testing Support (`PlayerController.cs`, `PlayerInteraction.cs`, `RelicCarryable.cs`, `GameExtractionManager.cs`)**:
+  - Maintained first-person Camera and AudioListener active by default in offline/unspawned mode to prevent "No cameras rendering" black screens.
+  - Enabled local movement, look controls, and `IInteractable` pickup/drop when running in standalone mode outside of a FishNet server.
+  - Dynamic runtime relic spawning in `GameExtractionManager` to prevent un-reserialized scene object errors.
+  - `OfflineSandboxGuard.cs`: when no FishNet `NetworkManager` is in the scene, scene `NetworkObject`s are flagged non-networked before `Start()` so FishNet no longer deactivates the player (fixes the "No cameras rendering" black screen and missing AudioListener).
+- **The Symphony Choir Climax (`RelicVoiceSynthesizer.cs` & `RelicBrain.cs`)**:
+  - Procedural runtime alien choral synthesis: each relic generates a unique musical drone/arpeggio (Bob's C4/E4 hum, Nelly's high A4 soprano vibrato, Gloop's E3 pulsing chant, Lord Malakor's deep A2 Gregorian throat drone).
+  - When all relics are socketed, they sing together in a funny, harmonic A-minor alien choir, continuously emitting loud noise to attract enemies.
+- **Permanent Sanctuary Illumination (`EchoShaderPublisher.cs`)**:
+  - Added `SetFullIllumination(bool enabled)`: floods the entire arena in permanent golden echo light upon symphony completion, removing the need for vocal echolocation during the final sprint.
+- **Monster Enrage Mechanic (`EnemyBrain.cs`)**:
+  - Added `EnrageAll(float speed)`: the blind beast awakens and enrages into a permanent 7.0 m/s hunt mode during the extraction sequence.
+- **Escape Portal & Extraction Flow (`EscapePortal.cs` & `GameExtractionManager.cs`)**:
+  - Extraction gateway on the perimeter wall that unlocks and activates beacon lights/audio upon symphony activation.
+  - 45-second extraction countdown with flashing warning HUD.
+  - High on Life style post-match screens: Victory (Rank S+ with comedic relic celebration quotes) and Defeat (with post-mortem roasts), plus `[R]` quick match restart.
+- **Sandbox Test Integration (`EchoSandboxBuilder.cs`)**:
+  - `Echo Protocol > Setup Altar and Escape Portal` menu item and automatic builder routines configuring the Central Altar, 3 Living Relics, North Wall Escape Portal, and Game Extraction Manager in `Assets/Scenes/Sandbox_Test.unity`.
+- **Altar Placement Relic Dialogues (`RelicPersonality.cs`)**:
+  - Added `RelicDialogueCategory.AltarPlaced = 9` with self-aware lines for all 4 personality archetypes (Bob, Nelly, Gloop, and Malakor).
   - **The Sarcastic Critic ("Obsidian Bob")**: Cynical meta commentary roasting player cardio, un-shrimping posture, sweating palms, and lack of corner checking.
   - **The Anxious Coward ("Nervous Nelly")**: Neurotic hyperventilating coward begging players to whisper, panicking when monsters get close, and pre-mourning demise.
   - **The Dumb Gloop ("Gloop the Box")**: Goofy cartoon babbler making funny squeaks, squelches, burps, boings, and celebrating being an aerodynamic cube.

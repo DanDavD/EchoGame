@@ -29,11 +29,17 @@ public class EchoShaderPublisher : MonoBehaviour
     /// <summary>True if full debug illumination is active (J key).</summary>
     public static bool IsFullIllumination => _fullIllumination;
 
+    /// <summary>Sets full illumination state globally.</summary>
+    public static void SetFullIllumination(bool enabled)
+    {
+        _fullIllumination = enabled;
+        Debug.Log($"<color=cyan>[EchoReveal]</color> Full Illumination: {(_fullIllumination ? "ON (Golden Altar Light)" : "OFF (Normal Echolocation)")}");
+    }
+
     /// <summary>Toggles full illumination for testing.</summary>
     public static void ToggleFullIllumination()
     {
-        _fullIllumination = !_fullIllumination;
-        Debug.Log($"<color=cyan>[EchoReveal]</color> Full Illumination: {(_fullIllumination ? "ON (Everything Illuminated)" : "OFF (Normal Echolocation)")}");
+        SetFullIllumination(!_fullIllumination);
     }
 
     /// <summary>Adds a controller to the set of echo sources. Called from OnEnable.</summary>
@@ -83,8 +89,7 @@ public class EchoShaderPublisher : MonoBehaviour
     {
         // Back to pitch black when the publisher goes away (e.g. leaving play mode).
         System.Array.Clear(SourceBuffer, 0, MaxSources);
-        Shader.SetGlobalVectorArray(EchoSourcesId, SourceBuffer);
-        Shader.SetGlobalVector(EchoFalloffsId, Vector4.zero);
+        PublishGlobals(Vector4.zero, false);
         if (_instance == this) _instance = null;
     }
 
@@ -95,7 +100,6 @@ public class EchoShaderPublisher : MonoBehaviour
 
         if (_fullIllumination)
         {
-            // Fully illuminate the entire world with an immense sphere
             SourceBuffer[0] = new Vector4(0f, 0f, 0f, 99999f);
             falloffs[0] = 5f;
             for (int i = 1; i < MaxSources; i++)
@@ -103,9 +107,18 @@ public class EchoShaderPublisher : MonoBehaviour
                 SourceBuffer[i] = Vector4.zero;
             }
 
-            Shader.SetGlobalVectorArray(EchoSourcesId, SourceBuffer);
-            Shader.SetGlobalVector(EchoFalloffsId, falloffs);
+            PublishGlobals(falloffs, true);
             return;
+        }
+
+        // Auto-discover sources if static list was cleared or missed initial OnEnable
+        if (Sources.Count == 0)
+        {
+            var found = Object.FindObjectsByType<EchoVisionController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (int k = 0; k < found.Length; k++)
+            {
+                Register(found[k]);
+            }
         }
 
         int count = Mathf.Min(Sources.Count, MaxSources);
@@ -115,9 +128,16 @@ public class EchoShaderPublisher : MonoBehaviour
             if (i < count)
             {
                 EchoVisionController s = Sources[i];
-                Vector3 o = s.Origin;
-                SourceBuffer[i] = new Vector4(o.x, o.y, o.z, s.CurrentRadius);
-                falloffs[i] = s.CurrentFalloff;
+                if (s != null)
+                {
+                    Vector3 o = s.Origin;
+                    SourceBuffer[i] = new Vector4(o.x, o.y, o.z, s.CurrentRadius);
+                    falloffs[i] = s.CurrentFalloff;
+                }
+                else
+                {
+                    SourceBuffer[i] = Vector4.zero;
+                }
             }
             else
             {
@@ -125,8 +145,25 @@ public class EchoShaderPublisher : MonoBehaviour
             }
         }
 
+        PublishGlobals(falloffs, false);
+    }
+
+    private void PublishGlobals(Vector4 falloffs, bool fullIllum)
+    {
+        Shader.SetGlobalFloat("_FullIllumination", fullIllum ? 1.0f : 0.0f);
         Shader.SetGlobalVectorArray(EchoSourcesId, SourceBuffer);
         Shader.SetGlobalVector(EchoFalloffsId, falloffs);
+
+        // Individual source vectors (direct uniform binding fallback)
+        Shader.SetGlobalVector("_EchoSource0", SourceBuffer[0]);
+        Shader.SetGlobalVector("_EchoSource1", SourceBuffer[1]);
+        Shader.SetGlobalVector("_EchoSource2", SourceBuffer[2]);
+        Shader.SetGlobalVector("_EchoSource3", SourceBuffer[3]);
+
+        // Single-source classic fallback
+        Shader.SetGlobalVector("_EchoOrigin", SourceBuffer[0]);
+        Shader.SetGlobalFloat("_EchoRadius", SourceBuffer[0].w);
+        Shader.SetGlobalFloat("_EchoFalloff", falloffs.x);
     }
 
     private void OnGUI()

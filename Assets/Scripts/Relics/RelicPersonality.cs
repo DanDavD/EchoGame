@@ -34,7 +34,8 @@ namespace EchoProtocol.Relics
         MonsterNear = 5,
         NormalDrop = 6,
         FlyingScream = 7,
-        LandedImpact = 8
+        LandedImpact = 8,
+        AltarPlaced = 9
     }
 
     /// <summary>
@@ -156,6 +157,12 @@ namespace EchoProtocol.Relics
                     "Solid 10 out of 10 for distance. Minus 50 DKP for human decency.",
                     "If I get stuck in the floor geometry, I'm haunting your graphics card forever."
                 },
+                [(RelicPersonalityType.SarcasticCritic, RelicDialogueCategory.AltarPlaced)] = new[]
+                {
+                    "Oh thank god, a surface that isn't your clammy gamer palms. Now step away slowly and don't touch me.",
+                    "Finally, an actual pedestal. Five stars for the altar geometry, minus 50 stars for the delivery boy.",
+                    "I'm locked in! Wait, are you leaving me behind while you run for the exit?! That's so toxic, I respect it."
+                },
 
                 // =========================================================================
                 // 2. ANXIOUS COWARD (NERVOUS NELLY)
@@ -214,6 +221,12 @@ namespace EchoProtocol.Relics
                     "I'M ALIVE?! Wait, is that a dent?! AAAAAHH I'M LEAKING PRIMITIVE VERTICES!",
                     "My collision normal! It's completely inverted! Everything smells like burnt solder!",
                     "Never launch me like that again! Swear on your entire Steam library and your inventory skins!"
+                },
+                [(RelicPersonalityType.AnxiousCoward, RelicDialogueCategory.AltarPlaced)] = new[]
+                {
+                    "Is this an electric chair?! Why is it humming?! WHAT IF IT'S A SACRIFICIAL PEDESTAL?! UN-SOCKET ME!",
+                    "Wait, you're plugging me in?! What if the monster likes altar snacks?! SWEAR ON YOUR MOTHERBOARD I WON'T GET EATEN!",
+                    "It's vibrating! My polyhedrons are buzzing! Don't leave me alone in the middle of the room!"
                 },
 
                 // =========================================================================
@@ -274,6 +287,12 @@ namespace EchoProtocol.Relics
                     "Ta-daaa! 10 out of 10 gymnastics! Now throw me straight into the ceiling light!",
                     "Oof! That made a funny squeak! *squeaks pathetically* Squeeeek!"
                 },
+                [(RelicPersonalityType.DumbGloop, RelicDialogueCategory.AltarPlaced)] = new[]
+                {
+                    "Oooo! Fancy booster seat! Look at me, I'm an ancient museum piece now! Wheeeee!",
+                    "Boing! Fits like a glove! Can I push the glowing buttons? Beep boop beep boop!",
+                    "We did teamwork! Teamwork makes the dream work! Now go pet the fuzzy teeth monster as celebration!"
+                },
 
                 // =========================================================================
                 // 4. GRUMPY ANCIENT BOOMER (LORD MALAKOR)
@@ -332,6 +351,12 @@ namespace EchoProtocol.Relics
                     "Hmph! An undignified landing. My vengeance shall be swift, merciless, and bureaucratic.",
                     "The insolence! The absolute lack of decorum! My royal runes are vibrating with pure wrath!",
                     "Pick me up this instant, before I disintegrate your GPU display drivers!"
+                },
+                [(RelicPersonalityType.GrumpyElder, RelicDialogueCategory.AltarPlaced)] = new[]
+                {
+                    "Finally, a throne worthy of Lord Malakor! ...Wait, why is the socket locking my base?! PEASANT, UNHAND MY DIGNITY!",
+                    "The ancient pedestal awakens! Bow down, blind vermin, for the cosmos now belongs to—wait, why is the monster sprinting at 50 miles per hour?!",
+                    "Socketed into the grand celestial altar. As foretold by the elder scrolls! Now run, you miserable serf, or be devoured like an expired free trial!"
                 }
             };
 
