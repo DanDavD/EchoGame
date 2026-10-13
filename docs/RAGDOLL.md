@@ -6,7 +6,7 @@ Echo Protocol uses a custom physics-driven ragdoll system to heavily penalize pl
 ## Core Principles
 1. **Decoupled from AI**: The enemy `EnemyBrain` has no concept of ragdolling. It merely invokes an event when catching a player. An external script (`EnemyCatchReaction`) listens to this and pushes the victim into ragdoll mode.
 2. **Kinematic to Dynamic Switch**: During normal gameplay, a Unity `CharacterController` drives the player. During ragdoll, the controller is disabled, and a dynamic `Rigidbody` takes over.
-3. **Multiplayer Ready**: We sync the hips/body location, but individual ragdoll flailing can be client-side. A server authoritative check will determine if someone gets caught.
+3. **Multiplayer Ready**: The server decides a catch and tells the victim through `PlayerController.RpcTriggerRagdoll` (an `ObserversRpc`); only the **owner** simulates the ragdoll and `NetworkTransform` replicates the flight to everyone else. Remote copies never become dynamic, so triggers (`RagdollTrap`) and the `R` debug key also act on the owner only.
 
 ## Scripts & Responsibilities
 
@@ -35,7 +35,7 @@ Attached to the Player (and required by `PlayerRagdoll`).
 
 ## Flow of a "Catch"
 1. `EnemyBrain` enters `Hunt` state.
-2. `EnemyBrain` touches the player (distance < 1.2m).
+2. `EnemyBrain` touches the player (horizontal distance < `catchDistance`, 1.6 m on the multiplayer prefab, 2.2 m by default).
 3. `EnemyBrain` fires `OnPlayerCaught(victimTransform)`.
 4. `EnemyCatchReaction` receives event, calculates knockback velocity.
 5. `EnemyCatchReaction` calls `victimRagdoll.TryRagdoll(knockback)`.

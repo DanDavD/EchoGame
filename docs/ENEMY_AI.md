@@ -75,8 +75,16 @@ stateDiagram-v2
 Leaving **Hunt** resets suspicion, so the enemy does not instantly re-enter the hunt.
 
 ### Catching players
-The enemy is blind but not numb: any player within `catchDistance` (1.6 m), in **any** state, triggers
-`OnPlayerCaught(Transform)` (with a cooldown). The ragdoll system will subscribe to this event.
+The enemy is blind but not numb: any player within `catchDistance`, in **any** state, triggers
+`OnPlayerCaught(Transform)` (with a 3 s cooldown). Players that are ragdolling or still immune after getting up are skipped.
+A relic being carried counts as its carrier. `EnemyCatchReaction` subscribes to this event and starts the [ragdoll](RAGDOLL.md).
+
+`catchDistance` is 2.2 m by default in `EnemyBrain` (and in the sandbox scene's enemy) and 1.6 m on the `Enemy_Blind` prefab used in multiplayer.
+The check is horizontal (height is ignored).
+
+### Enrage (extraction climax)
+When the altar symphony starts, `EnemyBrain.EnrageAll(speed)` forces every enemy into a permanent **Hunt** at 7 m/s (server only; remote clients ignore it).
+An enraged enemy never loses its target: if it hears nothing it keeps walking toward the **nearest player**, so staying silent no longer saves you.
 
 ## Events (extension points)
 
@@ -100,11 +108,14 @@ Select an enemy in the Scene view to see gizmos: red sphere = hearing range, gre
 
 ## Multiplayer notes
 
-The brain and sensor run **only on the server**. The server creates a `VoiceNoiseEmitter`-like `INoiseSource` per player
-fed with the loudness byte each client sends (~10 Hz). Because the AI only depends on `INoiseSource`, no AI code changes.
+The brain and sensor run **only on the server**; on clients the `NavMeshAgent`, `HearingSensor` and brain are disabled and the
+`NetworkTransform` drives the position. Each player has a `VoiceNoiseEmitter` fed by `EchoVisionController`, which exposes the loudness
+replicated from that client. Relics are `INoiseSource`s too (talking, panicking, flying). Because the AI only depends on `INoiseSource`, no AI code changes.
 
 ## Known limitations
 
 - Sound travels through walls (no occlusion yet).
 - Enemy wander points are limited to NavMesh areas reachable from its position.
 - A single enemy type; no group coordination.
+- The server does not know when a *remote* player is ragdolling or immune (that state lives on the owning client),
+  so it can re-catch and re-stun a remote player during their ragdoll/grace time. Fix: replicate a "ragdolled" flag.

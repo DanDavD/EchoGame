@@ -376,7 +376,7 @@ public static class EchoSandboxBuilder
     {
         // Destroy any static scene relics so FishNet does not complain about un-reserialized scene objects.
         // GameExtractionManager automatically spawns runtime instances with correct personalities upon Start().
-        var existingRelics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        var existingRelics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude);
         foreach (var r in existingRelics)
         {
             if (r != null) Object.DestroyImmediate(r.gameObject);

@@ -144,6 +144,10 @@ public class EnemyBrain : NetworkBehaviour
     /// <summary>Forces this enemy into an enraged hunt state with increased speed for the extraction climax.</summary>
     public void Enrage(float speed = 7.0f)
     {
+        // Remote clients only mirror the server's transform; their agent is disabled.
+        if (IsSpawned && !IsServerStarted) return;
+
+        _enraged = true;
         _huntSpeed = speed;
         _loseTargetTime = 99999f;
         if (_agent != null && _agent.isOnNavMesh)
@@ -168,6 +172,7 @@ public class EnemyBrain : NetworkBehaviour
     private Vector3 _currentTarget;
     private bool _idleWaiting;
     private bool _searching;
+    private bool _enraged;
     private float _timer;
     private float _lostTimer;
     private float _nextCatchTime;
@@ -345,6 +350,13 @@ public class EnemyBrain : NetworkBehaviour
             _lostTimer = 0f;
             RefreshTarget(_sensor.LastHeardPosition);
         }
+        else if (_enraged && TryGetNearestPlayerPosition(out Vector3 playerPos))
+        {
+            // Berserk beast: keeps tracking the closest player even in total silence, instead of standing
+            // at a stale (or never-set, i.e. world origin) last-heard position.
+            _lostTimer = 0f;
+            RefreshTarget(playerPos);
+        }
         else
         {
             _lostTimer += Time.deltaTime;
@@ -422,6 +434,28 @@ public class EnemyBrain : NetworkBehaviour
                 return;
             }
         }
+    }
+
+    private bool TryGetNearestPlayerPosition(out Vector3 position)
+    {
+        position = default;
+        float best = float.MaxValue;
+        bool found = false;
+
+        var players = PlayerController.ActivePlayers;
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pc = players[i];
+            if (pc == null) continue;
+
+            float sqr = (pc.transform.position - transform.position).sqrMagnitude;
+            if (sqr >= best) continue;
+
+            best = sqr;
+            position = pc.transform.position;
+            found = true;
+        }
+        return found;
     }
 
     private bool TryWander()

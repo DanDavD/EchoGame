@@ -43,7 +43,9 @@ public class EnemyCatchReaction : MonoBehaviour
             victim = carryable.Carrier.transform;
         }
 
-        var ragdoll = victim.GetComponentInParent<PlayerRagdoll>() ?? victim.GetComponentInChildren<PlayerRagdoll>();
+        // Explicit null checks: `??` bypasses Unity's overloaded == and can return a destroyed/fake-null object.
+        var ragdoll = victim.GetComponentInParent<PlayerRagdoll>();
+        if (ragdoll == null) ragdoll = victim.GetComponentInChildren<PlayerRagdoll>();
         if (ragdoll == null) return;
 
         Vector3 away = victim.position - transform.position;
@@ -51,7 +53,8 @@ public class EnemyCatchReaction : MonoBehaviour
         away = away.sqrMagnitude < 0.01f ? transform.forward : away.normalized;
         Vector3 launch = away * _knockbackSpeed + Vector3.up * _upSpeed;
 
-        var pc = victim.GetComponentInParent<PlayerController>() ?? victim.GetComponentInChildren<PlayerController>();
+        var pc = victim.GetComponentInParent<PlayerController>();
+        if (pc == null) pc = victim.GetComponentInChildren<PlayerController>();
         if (pc != null && pc.IsSpawned)
         {
             pc.RpcTriggerRagdoll(launch);

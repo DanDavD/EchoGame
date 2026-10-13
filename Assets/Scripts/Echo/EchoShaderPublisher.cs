@@ -114,7 +114,7 @@ public class EchoShaderPublisher : MonoBehaviour
         // Auto-discover sources if static list was cleared or missed initial OnEnable
         if (Sources.Count == 0)
         {
-            var found = Object.FindObjectsByType<EchoVisionController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var found = Object.FindObjectsByType<EchoVisionController>(FindObjectsInactive.Exclude);
             for (int k = 0; k < found.Length; k++)
             {
                 Register(found[k]);

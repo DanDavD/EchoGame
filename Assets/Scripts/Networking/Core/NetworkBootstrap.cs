@@ -244,20 +244,32 @@ namespace EchoProtocol.Networking.Core
 
                 if (GUILayout.Button("Host Local (No Steam)"))
                 {
-                    if (_localTransport == null) Debug.LogError("[Bootstrap] Tugboat no encontrado.");
-                    else { _networkManager.TransportManager.Transport = _localTransport;  }
-                    
-                    bool hostStarted = _networkManager.ServerManager.StartConnection();
-                    bool clientStarted = _networkManager.ClientManager.StartConnection();
-                    Debug.Log($"[Bootstrap] Local Host intentado. Server: {hostStarted}, Client: {clientStarted}");
+                    if (_localTransport == null)
+                    {
+                        Debug.LogError("[Bootstrap] Tugboat transport not found; cannot host locally.");
+                    }
+                    else
+                    {
+                        _networkManager.TransportManager.Transport = _localTransport;
+
+                        bool hostStarted = _networkManager.ServerManager.StartConnection();
+                        bool clientStarted = _networkManager.ClientManager.StartConnection();
+                        Debug.Log($"[Bootstrap] Local host attempted. Server: {hostStarted}, Client: {clientStarted}");
+                    }
                 }
                 if (GUILayout.Button("Join Local Client"))
                 {
-                    if (_localTransport == null) Debug.LogError("[Bootstrap] Tugboat no encontrado.");
-                    else { _networkManager.TransportManager.Transport = _localTransport;  }
-                    
-                    bool clientStarted = _networkManager.ClientManager.StartConnection();
-                    Debug.Log($"[Bootstrap] Local Join intentado. Client: {clientStarted}");
+                    if (_localTransport == null)
+                    {
+                        Debug.LogError("[Bootstrap] Tugboat transport not found; cannot join locally.");
+                    }
+                    else
+                    {
+                        _networkManager.TransportManager.Transport = _localTransport;
+
+                        bool clientStarted = _networkManager.ClientManager.StartConnection();
+                        Debug.Log($"[Bootstrap] Local join attempted. Client: {clientStarted}");
+                    }
                 }
             }
             else

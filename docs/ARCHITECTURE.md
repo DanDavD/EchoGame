@@ -24,10 +24,16 @@ flowchart LR
 
 Why dB and not raw RMS? Human loudness perception is logarithmic; raw RMS makes whispers nearly invisible and screams saturate.
 
+The microphone device is a process-wide resource, and every player prefab (including remote avatars) carries a `MicrophoneLoudness`.
+Capture is therefore **reference counted**: the device is started by the first user and only stopped when the last one is disabled,
+so a remote avatar spawning (and being disabled right away) never kills the local player's recording.
+When the 1-second ring buffer wraps, the previous reading is held for that frame instead of dropping to silence.
+
 ### 2. `EchoVisionController` (`Scripts/Echo`)
 Maps `Level01` to a radius through an editable `AnimationCurve` (designers tune feel without touching code),
-applies a noise gate, and smooths growth/decay separately. It calculates the local target radius. In multiplayer, the owner sets a FishNet `SyncVar`, and clients smooth towards it.
-(after movement. Instances register with `EchoShaderPublisher`, which aggregates up to 4 players and sets the global shader arrays).
+applies a noise gate, and smooths growth/decay separately. It runs in `LateUpdate`, after movement, so the sphere uses the player's final position.
+In multiplayer the owner computes the radius and writes it to a FishNet `SyncVar`; remote clients smooth towards it.
+Instances register with `EchoShaderPublisher`, which aggregates up to 4 players and sets the global shader arrays.
 
 ### 3. `EchoReveal` shader (`Shaders/EchoReveal.shader`)
 URP unlit HLSL. Per pixel:
@@ -53,21 +59,36 @@ Textures are projected in **world space** (triplanar-lite), so scaled primitives
 | Enum + `switch` state machine | State pattern classes / behaviour tree | Three states do not justify the boilerplate; extracting a state class later is a mechanical refactor. |
 | Runtime `NavMeshBootstrap` fallback | Trust the baked NavMesh | An enemy standing on missing ground fails silently; the fallback makes the scene self-healing. |
 
-## Planned Multiplayer Model (Fish-Net)
+## Gameplay Loop Modules
 
-Principle: **enemies run only on the server; each client owns its own player.**
+On top of the voice → light core, the match loop is built from small, separate modules (design in [Living Relics](LIVING_RELICS_DESIGN.md)):
+
+| Module | Folder | Role |
+|---|---|---|
+| `IInteractable` + `PlayerInteraction` | `Interaction/`, `Player/` | One interaction contract (`E`) for relics, altar sockets and future doors/levers. |
+| `RelicCarryable` | `Interaction/` | Networked pick-up/drop/throw physics; drops automatically when the carrier ragdolls. |
+| `RelicBrain` + `RelicPersonality` + `RelicVoiceSynthesizer` + `RelicDialogueUI` | `Relics/` | Reactions (sprint, mic, monster, flight), dialogue repository, procedural voices, HUD/world bubbles. Registers as an `INoiseSource`, so the monster hears relics with zero AI changes. |
+| `AltarReceptacle` + `AltarSocket` | `Altar/` | Objective tracking; completing all sockets triggers the symphony climax. |
+| `EscapePortal` + `GameExtractionManager` | `Extraction/` | Extraction countdown, victory/defeat screens and restart. |
+
+## Multiplayer Model (Fish-Net)
+
+Principle: **enemies run only on the server; each client owns its own player.** (Implemented, see [Networking](NETWORKING.md).)
 
 | Concern | Authority | Notes |
 |---|---|---|
 | Player movement | Owning client | Client-authoritative transform sync is enough for a comedy co-op game. |
-| Microphone level | Owning client → server | Send `Level01` as a **single byte at ~10 Hz** via a `ServerRpc`. Audio is *not* sent through this channel. |
+| Microphone level | Owning client → server | `Level01` is replicated through `EchoVisionController` (quantized radius + loudness), ~10–20 Hz. Audio is *not* sent through this channel. |
 | Enemy AI & perception | Server | Server decides Idle / Investigate / Hunt from received levels and positions. |
 | Ragdolls | Owning client, hips synced | Syncing only the root keeps bandwidth low; limbs are cosmetic. |
-| Voice chat | Voice plugin | Proximity attenuation handled by the plugin. |
+| Relic dialogue | Server → observers | The server picks the line (`ObserversRpc`); clients only render it. |
+| Voice chat | Voice plugin | Proximity attenuation handled by the plugin. *(Planned.)* |
 
 ## Conventions
 
-- Scripts live in `Assets/Scripts/<Module>/`; networking-specific code is isolated in `Networking/` so core systems stay testable offline.
+- Scripts live in `Assets/Scripts/<Module>/`; networking-specific code is isolated in `Networking/` so core systems stay testable offline
+  (gameplay classes still derive from `NetworkBehaviour`; `OfflineSandboxGuard` makes them run when the scene has no `NetworkManager`).
+- Avoid `??` / `?.` on `UnityEngine.Object` references: they bypass Unity's overloaded `==` for destroyed objects. Use explicit `== null` checks.
 - Private serialized fields (`[SerializeField] private float _moveSpeed`).
 - Modern Unity 6 APIs (`FindFirstObjectByType`, Input System callbacks/assets).
 - One responsibility per script.

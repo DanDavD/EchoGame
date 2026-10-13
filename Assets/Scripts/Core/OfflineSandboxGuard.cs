@@ -38,11 +38,11 @@ namespace EchoProtocol.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void DisableNetworkingWhenOffline()
         {
-            if (Object.FindFirstObjectByType<NetworkManager>(FindObjectsInactive.Include) != null) return;
+            if (Object.FindAnyObjectByType<NetworkManager>(FindObjectsInactive.Include) != null) return;
 
             IsOffline = true;
 
-            var networkObjects = Object.FindObjectsByType<NetworkObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var networkObjects = Object.FindObjectsByType<NetworkObject>(FindObjectsInactive.Include);
             for (int i = 0; i < networkObjects.Length; i++)
             {
                 networkObjects[i].SetIsNetworked(false);
@@ -50,7 +50,7 @@ namespace EchoProtocol.Core
 
             if (networkObjects.Length > 0) _anchor = networkObjects[0];
 
-            var behaviours = Object.FindObjectsByType<NetworkBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var behaviours = Object.FindObjectsByType<NetworkBehaviour>(FindObjectsInactive.Include);
             for (int i = 0; i < behaviours.Length; i++)
             {
                 Bind(behaviours[i]);
