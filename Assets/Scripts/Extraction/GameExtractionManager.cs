@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using EchoProtocol.Altar;
+using EchoProtocol.Level;
 using EchoProtocol.Player;
 using EchoProtocol.Relics;
 
@@ -79,6 +80,30 @@ namespace EchoProtocol.Extraction
             SpawnRuntimeRelics();
         }
 
+        /// <summary>
+        /// Where each relic appears: the level's relic spawn points, or the sandbox arena defaults when the scene has none.
+        /// </summary>
+        private static (Vector3 pos, RelicPersonalityType personality, string name)[] BuildRelicSpawnData()
+        {
+            var points = SpawnRegistry.Get(SpawnKind.Relic);
+            if (points.Count == 0)
+            {
+                return new[]
+                {
+                    (new Vector3(-14f, 0.6f, 12f), RelicPersonalityType.SarcasticCritic, "Relic_ObsidianBob"),
+                    (new Vector3(16f, 0.6f, 18f), RelicPersonalityType.AnxiousCoward, "Relic_NervousNelly"),
+                    (new Vector3(-4f, 0.6f, 32f), RelicPersonalityType.DumbGloop, "Relic_DumbGloop")
+                };
+            }
+
+            var data = new (Vector3, RelicPersonalityType, string)[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                data[i] = (points[i].transform.position, points[i].RelicPersonality, $"Relic_{points[i].RelicPersonality}");
+            }
+            return data;
+        }
+
         private void SpawnRuntimeRelics()
         {
             var existing = FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude);
@@ -101,12 +126,7 @@ namespace EchoProtocol.Extraction
                 Debug.LogWarning("[GameExtractionManager] NetworkManager present but no relic prefab is available; skipping local relic spawn.");
                 return;
             }
-            (Vector3 pos, RelicPersonalityType personality, string name)[] relicData = new[]
-            {
-                (new Vector3(-14f, 0.6f, 12f), RelicPersonalityType.SarcasticCritic, "Relic_ObsidianBob"),
-                (new Vector3(16f, 0.6f, 18f), RelicPersonalityType.AnxiousCoward, "Relic_NervousNelly"),
-                (new Vector3(-4f, 0.6f, 32f), RelicPersonalityType.DumbGloop, "Relic_DumbGloop")
-            };
+            (Vector3 pos, RelicPersonalityType personality, string name)[] relicData = BuildRelicSpawnData();
 
             for (int i = 0; i < relicData.Length; i++)
             {

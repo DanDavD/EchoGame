@@ -2,6 +2,7 @@ using System.Reflection;
 using FishNet.Managing;
 using FishNet.Object;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EchoProtocol.Core
 {
@@ -36,6 +37,17 @@ namespace EchoProtocol.Core
 
         // AfterSceneLoad runs after Awake but before the first Start(), which is when FishNet deactivates objects.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void OnFirstSceneLoaded()
+        {
+            // Scenes loaded later (menu -> level, match restart) need the same treatment: sceneLoaded fires after
+            // their Awake but before their first Start, just like AfterSceneLoad does for the first scene.
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            DisableNetworkingWhenOffline();
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode) => DisableNetworkingWhenOffline();
+
         private static void DisableNetworkingWhenOffline()
         {
             if (Object.FindAnyObjectByType<NetworkManager>(FindObjectsInactive.Include) != null) return;

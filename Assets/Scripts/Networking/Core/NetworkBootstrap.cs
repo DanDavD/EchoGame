@@ -6,6 +6,7 @@ using FishNet.Transporting;
 using FishNet.Component.Spawning;
 using Steamworks;
 using UnityEngine;
+using EchoProtocol.Level;
 using EchoProtocol.Networking.Steam;
 
 namespace EchoProtocol.Networking.Core
@@ -91,6 +92,7 @@ namespace EchoProtocol.Networking.Core
         {
             if (args.ConnectionState == LocalConnectionState.Started)
             {
+                ApplyLevelPlayerSpawns();
                 SpawnNetworkedEnemy();
                 SpawnNetworkedRelic();
             }
@@ -115,7 +117,7 @@ namespace EchoProtocol.Networking.Core
                 return;
             }
 
-            _spawnedEnemyInstance = Instantiate(_enemyPrefab, new Vector3(-6f, 1f, 16f), Quaternion.identity);
+            _spawnedEnemyInstance = Instantiate(_enemyPrefab, LevelPosition(SpawnKind.Enemy, new Vector3(-6f, 1f, 16f)), Quaternion.identity);
             _networkManager.ServerManager.Spawn(_spawnedEnemyInstance);
             Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Enemy_Blind successfully spawned and synchronized!");
         }
@@ -134,7 +136,7 @@ namespace EchoProtocol.Networking.Core
                 return;
             }
 
-            _spawnedRelicInstance = Instantiate(_relicPrefab, new Vector3(0f, 0.5f, 2.5f), Quaternion.identity);
+            _spawnedRelicInstance = Instantiate(_relicPrefab, LevelPosition(SpawnKind.Relic, new Vector3(0f, 0.5f, 2.5f)), Quaternion.identity);
             _networkManager.ServerManager.Spawn(_spawnedRelicInstance);
             Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Relic successfully spawned and synchronized!");
         }
@@ -189,6 +191,25 @@ namespace EchoProtocol.Networking.Core
                     Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy + Relic)!");
                 }
             }
+        }
+
+        /// <summary>Position of the first level spawn point of <paramref name="kind"/>, or <paramref name="fallback"/> when the level has none.</summary>
+        private static Vector3 LevelPosition(SpawnKind kind, Vector3 fallback)
+        {
+            SpawnPoint point = SpawnRegistry.First(kind);
+            return point != null ? point.transform.position : fallback;
+        }
+
+        /// <summary>Points the player spawner at the level's player spawn points (resolved once the scene is loaded).</summary>
+        private void ApplyLevelPlayerSpawns()
+        {
+            var spawner = GetComponent<PlayerSpawner>();
+            var points = SpawnRegistry.Get(SpawnKind.Player);
+            if (spawner == null || points.Count == 0) return;
+
+            var spawns = new Transform[points.Count];
+            for (int i = 0; i < points.Count; i++) spawns[i] = points[i].transform;
+            spawner.Spawns = spawns;
         }
 
         private void SetupSpawnPoints()

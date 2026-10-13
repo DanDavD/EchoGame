@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Catacombs level (`Assets/Level/Catacombs.txt`, `DungeonGrid.cs`, `DungeonBuilder.cs`)**: a 21x19-cell dungeon generated from an ASCII map into `Dungeon_Main.unity` (merged wall runs, ceiling, pillars, ragdoll traps, altar, exit portal, baked NavMesh). `DungeonGrid` validates the map (one start/altar, three shrines, sealed border, everything reachable on foot) and is unit-tested. See `docs/LEVEL_DESIGN.md`.
+- **Spawn points (`SpawnPoint.cs`, `SpawnRegistry`)**: levels place player / relic / enemy markers and the match flow reads them instead of hardcoded coordinates.
+- **PlayMode test suite (`Assets/Tests/PlayMode`)**: loads `Dungeon_Main` and verifies spawns, relics, monster on NavMesh, NavMesh paths from the start to the altar, every shrine and the exit, and a full win through the portal.
 - **Windows build pipeline (`EchoBuildPipeline.cs`)**: menu *Echo Protocol → Build → Windows (Release / Development)* and a headless entry point for batch builds; copies `steam_appid.txt` next to the exe and exits non-zero on failure.
 - **EditMode test suite (`Assets/Tests/EditMode`)**: hearing falloff, microphone dB → loudness buckets with hysteresis, `NoiseRegistry` and relic dialogue tables.
 - **`DebugKeys`**: single gate for the prototype shortcuts (`V`, `J`, `H`, `T`, `Y`, debug ragdoll); they are compiled out of release builds.
@@ -91,6 +94,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documentation brought back in sync with the code: README (status, structure, controls, roadmap), architecture (multiplayer is implemented, gameplay modules), enemy AI (catch distance, enrage), ragdoll (owner-only), networking (implementation notes, offline fallback, current limitations) and the living-relics design (real archetypes, class diagram, PR status).
 
 ### Fixed
+- **Offline guard (`OfflineSandboxGuard.cs`)**: it only ran for the first scene of the game, so a scene loaded later (menu to level, match restart) lost its player and monster. It now also runs on every `sceneLoaded`.
+- **Editor tooling (`EchoSandboxBuilder.cs`)**: removed the `[InitializeOnLoad]` hooks that opened and modified `Sandbox_Test` on every script recompile; the builders are menu-only now.
 - **Player builds (`EchoSandboxBuilder.cs`)**: the editor tooling lived inside the game assembly and referenced `UnityEditor`, so a player build could not compile. It now has its own editor-only assembly (`EchoProtocol.Editor`).
 - **Microphone (`MicrophoneLoudness.cs`)**: capture is now reference counted per device, so a remote avatar spawning (its copy of the component is disabled right away) no longer stops the local player's microphone. The loudness also no longer drops to silence for ~32 ms every second when the 1 s ring buffer wraps.
 - **Enemy (`EnemyBrain.cs`)**: an enraged monster now keeps tracking the nearest player in silence instead of standing at its last heard position (the world origin if it never heard anything); `Enrage` is ignored on remote clients, where the agent is disabled and `SetDestination` logged errors.
