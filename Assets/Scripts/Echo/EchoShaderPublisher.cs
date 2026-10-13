@@ -70,16 +70,15 @@ public class EchoShaderPublisher : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current == null) return;
 
         // [J] Toggle full scene illumination
-        if (Keyboard.current.jKey.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(Key.J))
         {
             ToggleFullIllumination();
         }
 
         // [H] Toggle monster freeze
-        if (Keyboard.current.hKey.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(Key.H))
         {
             EnemyBrain.ToggleFreeze();
         }

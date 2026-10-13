@@ -137,7 +137,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private void Update()
     {
         // Single tap burst on V key: emits sound for 0.25s then fades back to silence
-        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.vKey.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(UnityEngine.InputSystem.Key.V))
         {
             _debugBurstTimer = 0.25f;
         }
@@ -177,35 +177,49 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         float rms = Mathf.Sqrt(sum / _buffer.Length);
 
         CurrentDb = rms > 1e-6f ? 20f * Mathf.Log10(rms) : -80f;
-        _lastMicTarget = CurrentDb <= _silenceDb
-            ? 0f
-            : Mathf.Clamp01(Mathf.InverseLerp(_silenceDb, _screamDb, CurrentDb));
+        _lastMicTarget = DbToLevel01(CurrentDb, _silenceDb, _screamDb);
         return _lastMicTarget;
+    }
+
+    /// <summary>Remaps a dB reading to 0..1: at or below <paramref name="silenceDb"/> is 0, at or above <paramref name="screamDb"/> is 1.</summary>
+    public static float DbToLevel01(float db, float silenceDb, float screamDb)
+    {
+        return db <= silenceDb ? 0f : Mathf.Clamp01(Mathf.InverseLerp(silenceDb, screamDb, db));
+    }
+
+    /// <summary>
+    /// Loudness bucket for <paramref name="level"/> given the bucket the player is currently in.
+    /// Entering a bucket needs its threshold; leaving it needs the level to fall <paramref name="hysteresis"/> below it.
+    /// </summary>
+    public static VoiceLoudness ResolveState(VoiceLoudness current, float level, float whisper, float talk, float scream, float hysteresis)
+    {
+        VoiceLoudness s = current;
+
+        // Climb while we exceed the next bucket's threshold...
+        while (s < VoiceLoudness.Scream && level >= Threshold(s + 1, whisper, talk, scream)) s++;
+        // ...and fall while we are clearly below the current bucket's threshold.
+        while (s > VoiceLoudness.Silent && level < Threshold(s, whisper, talk, scream) - hysteresis) s--;
+
+        return s;
+    }
+
+    private static float Threshold(VoiceLoudness state, float whisper, float talk, float scream)
+    {
+        switch (state)
+        {
+            case VoiceLoudness.Whisper: return whisper;
+            case VoiceLoudness.Talk: return talk;
+            case VoiceLoudness.Scream: return scream;
+            default: return 0f;
+        }
     }
 
     private void UpdateState()
     {
-        VoiceLoudness s = State;
-
-        // Climb while we exceed the next bucket's threshold...
-        while (s < VoiceLoudness.Scream && Level01 >= ThresholdFor(s + 1)) s++;
-        // ...and fall while we are clearly below the current bucket's threshold.
-        while (s > VoiceLoudness.Silent && Level01 < ThresholdFor(s) - _hysteresis) s--;
-
+        VoiceLoudness s = ResolveState(State, Level01, _whisperThreshold, _talkThreshold, _screamThreshold, _hysteresis);
         if (s == State) return;
         State = s;
         OnStateChanged?.Invoke(State);
-    }
-
-    private float ThresholdFor(VoiceLoudness state)
-    {
-        switch (state)
-        {
-            case VoiceLoudness.Whisper: return _whisperThreshold;
-            case VoiceLoudness.Talk: return _talkThreshold;
-            case VoiceLoudness.Scream: return _screamThreshold;
-            default: return 0f;
-        }
     }
 
     /// <summary>

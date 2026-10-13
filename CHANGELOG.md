@@ -5,25 +5,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Fixed
-- **Microphone (`MicrophoneLoudness.cs`)**: capture is now reference counted per device, so a remote avatar spawning (its copy of the component is disabled right away) no longer stops the local player's microphone. The loudness also no longer drops to silence for ~32 ms every second when the 1 s ring buffer wraps.
-- **Enemy (`EnemyBrain.cs`)**: an enraged monster now keeps tracking the nearest player in silence instead of standing at its last heard position (the world origin if it never heard anything); `Enrage` is ignored on remote clients, where the agent is disabled and `SetDestination` logged errors.
-- **Hearing (`HearingSensor.cs`)**: sources whose owner was destroyed are skipped instead of throwing.
-- **Ragdoll (`PlayerRagdoll.cs`, `RagdollTrap.cs`)**: the trap and the `R` debug key only ragdoll the *owner*; before, every peer turned remote avatars dynamic and fought their `NetworkTransform`.
-- **Relics (`RelicCarryable.cs`, `RelicBrain.cs`)**: a host no longer handles carrier changes twice (double pickup events and dialogue); clients no longer call observers RPCs (only the server sends dialogue and choir RPCs); a remote carrier's loudness is read from the networked `EchoVisionController`; the server rejects picking up a relic locked in the altar.
-- **Match flow (`GameExtractionManager.cs`)**: restarting a match resets the static full-illumination flag, so the next match no longer starts fully lit; `Instance` is cleared on destroy; a player build with a `NetworkManager` no longer creates networked primitives without a `NetworkObject`.
-- **Steam (`SteamLobbyManager.cs`)**: the lobby host no longer tries to connect to itself when `LobbyEnter_t` arrives before the server is reported as started; callbacks are disposed and the lobby is left in `OnDisable` (using `SteamManager` from `OnDestroy` could re-create it while quitting and throw).
-- **Bootstrap (`NetworkBootstrap.cs`)**: *Host Local* / *Join Local* no longer start a connection on the wrong transport when Tugboat is missing.
-- **Unity objects (`EnemyCatchReaction.cs`)**: replaced `??` on Unity components with explicit null checks (it bypasses Unity's overloaded `==`).
-
-### Changed
-- Replaced deprecated `FindFirstObjectByType` / `FindObjectsByType(..., FindObjectsSortMode)` calls with `FindAnyObjectByType` / `FindObjectsByType(FindObjectsInactive)` (removes the `CS0618` warnings).
-- Documentation brought back in sync with the code: README (status, structure, controls, roadmap), architecture (multiplayer is implemented, gameplay modules), enemy AI (catch distance, enrage), ragdoll (owner-only), networking (implementation notes, offline fallback, current limitations) and the living-relics design (real archetypes, class diagram, PR status).
-
-### Removed
-- Stray root files: `test.cs` (dead copy of the FishySteamworks transport), `fishy_contents.json`, `fishy_latest.json` and `fix_log.txt`.
-
 ### Added
+- **Windows build pipeline (`EchoBuildPipeline.cs`)**: menu *Echo Protocol → Build → Windows (Release / Development)* and a headless entry point for batch builds; copies `steam_appid.txt` next to the exe and exits non-zero on failure.
+- **EditMode test suite (`Assets/Tests/EditMode`)**: hearing falloff, microphone dB → loudness buckets with hysteresis, `NoiseRegistry` and relic dialogue tables.
+- **`DebugKeys`**: single gate for the prototype shortcuts (`V`, `J`, `H`, `T`, `Y`, debug ragdoll); they are compiled out of release builds.
 - **Central Altar & Receptacle System (`AltarReceptacle.cs` & `AltarSocket.cs`)**:
   - Interactive pedestal sockets implementing `IInteractable`, allowing players carrying living relics to lock them into the altar with `[E]`.
   - Individual socket state tracking, visual glowing lights (cyan dormant -> golden active), and automatic completion detection.
@@ -97,4 +82,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `NavMeshBootstrap`: runtime fallback that builds the NavMesh if it is missing.
 - Sandbox builder now bakes a NavMesh, adds a red `Enemy_Blind` (visible only inside echo light) and gives the player a `VoiceNoiseEmitter`.
 - Documentation: `docs/ENEMY_AI.md` (hearing model, state diagram, tuning guide).
+
+
+### Changed
+- Unity editor bumped to `6000.6.5f1` (docs updated).
+- `HearingSensor.ComputePerceivedLevel`, `MicrophoneLoudness.DbToLevel01` and `MicrophoneLoudness.ResolveState` extracted as pure static functions (same behaviour, now unit-testable).
+- Replaced deprecated `FindFirstObjectByType` / `FindObjectsByType(..., FindObjectsSortMode)` calls with `FindAnyObjectByType` / `FindObjectsByType(FindObjectsInactive)` (removes the `CS0618` warnings).
+- Documentation brought back in sync with the code: README (status, structure, controls, roadmap), architecture (multiplayer is implemented, gameplay modules), enemy AI (catch distance, enrage), ragdoll (owner-only), networking (implementation notes, offline fallback, current limitations) and the living-relics design (real archetypes, class diagram, PR status).
+
+### Fixed
+- **Player builds (`EchoSandboxBuilder.cs`)**: the editor tooling lived inside the game assembly and referenced `UnityEditor`, so a player build could not compile. It now has its own editor-only assembly (`EchoProtocol.Editor`).
+- **Microphone (`MicrophoneLoudness.cs`)**: capture is now reference counted per device, so a remote avatar spawning (its copy of the component is disabled right away) no longer stops the local player's microphone. The loudness also no longer drops to silence for ~32 ms every second when the 1 s ring buffer wraps.
+- **Enemy (`EnemyBrain.cs`)**: an enraged monster now keeps tracking the nearest player in silence instead of standing at its last heard position (the world origin if it never heard anything); `Enrage` is ignored on remote clients, where the agent is disabled and `SetDestination` logged errors.
+- **Hearing (`HearingSensor.cs`)**: sources whose owner was destroyed are skipped instead of throwing.
+- **Ragdoll (`PlayerRagdoll.cs`, `RagdollTrap.cs`)**: the trap and the `R` debug key only ragdoll the *owner*; before, every peer turned remote avatars dynamic and fought their `NetworkTransform`.
+- **Relics (`RelicCarryable.cs`, `RelicBrain.cs`)**: a host no longer handles carrier changes twice (double pickup events and dialogue); clients no longer call observers RPCs (only the server sends dialogue and choir RPCs); a remote carrier's loudness is read from the networked `EchoVisionController`; the server rejects picking up a relic locked in the altar.
+- **Match flow (`GameExtractionManager.cs`)**: restarting a match resets the static full-illumination flag, so the next match no longer starts fully lit; `Instance` is cleared on destroy; a player build with a `NetworkManager` no longer creates networked primitives without a `NetworkObject`.
+- **Steam (`SteamLobbyManager.cs`)**: the lobby host no longer tries to connect to itself when `LobbyEnter_t` arrives before the server is reported as started; callbacks are disposed and the lobby is left in `OnDisable` (using `SteamManager` from `OnDestroy` could re-create it while quitting and throw).
+- **Bootstrap (`NetworkBootstrap.cs`)**: *Host Local* / *Join Local* no longer start a connection on the wrong transport when Tugboat is missing.
+- **Unity objects (`EnemyCatchReaction.cs`)**: replaced `??` on Unity components with explicit null checks (it bypasses Unity's overloaded `==`).
+
+### Removed
+- Stray root files: `test.cs` (dead copy of the FishySteamworks transport), `fishy_contents.json`, `fishy_latest.json` and `fix_log.txt`.
 

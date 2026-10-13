@@ -81,8 +81,7 @@ public class HearingSensor : MonoBehaviour
 
             // Linear falloff: full loudness at 0 m, silent at max range.
             // (Walls do not muffle sound yet; occlusion is a possible future improvement.)
-            float attenuation = 1f - Mathf.Clamp01(distance / _maxHearingRange);
-            float perceived = sources[i].NoiseLevel01 * attenuation;
+            float perceived = ComputePerceivedLevel(sources[i].NoiseLevel01, distance, _maxHearingRange);
 
             if (perceived > best)
             {
@@ -103,6 +102,16 @@ public class HearingSensor : MonoBehaviour
             Suspicion -= _suspicionDecay * dt;
         }
         Suspicion = Mathf.Clamp01(Suspicion);
+    }
+
+    /// <summary>
+    /// Loudness the enemy actually perceives: linear falloff, full volume at 0 m and silent at <paramref name="maxRange"/>.
+    /// </summary>
+    public static float ComputePerceivedLevel(float noiseLevel01, float distance, float maxRange)
+    {
+        if (maxRange <= 0f) return 0f;
+        float attenuation = 1f - Mathf.Clamp01(distance / maxRange);
+        return Mathf.Clamp01(noiseLevel01) * attenuation;
     }
 
     private void OnDrawGizmosSelected()

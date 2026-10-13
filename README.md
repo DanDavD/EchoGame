@@ -45,7 +45,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 | Area | Choice |
 |---|---|
-| Engine | Unity 6 (`6000.6.4f1`) |
+| Engine | Unity 6 (`6000.6.5f1`) |
 | Rendering | Universal Render Pipeline (URP 17.6), custom HLSL shader |
 | Input | Unity Input System (`InputSystem_Actions.inputactions`) |
 | Networking | [Fish-Net](https://fish-networking.gitbook.io/docs/) (client-hosted P2P) + FishySteamworks + Steamworks.NET |
@@ -54,7 +54,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 ## Getting Started
 
-**Requirements:** Unity `6000.6.4f1` (via Unity Hub) and a working microphone.
+**Requirements:** Unity `6000.6.5f1` (via Unity Hub) and a working microphone.
 
 1. Clone the repository. The project uses **Git LFS**, so install it first (`git lfs install`).
 2. Open the folder in Unity Hub with the exact editor version above.
@@ -64,11 +64,17 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 **Controls:** `WASD` move · `Mouse` look · `Space` jump · `Shift` sprint · `E` interact / pick up / place relic · `G` drop relic · `Esc` release cursor.
 
-**Debug keys (prototype only):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `T` switch relic personality · `Y` force a relic roast. In extraction end screens `R` restarts the match.
+**Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `T` switch relic personality · `Y` force a relic roast. In extraction end screens `R` restarts the match.
 
 **Networking:** the in-game panel offers *Host Steam Lobby*, *Host Local* and *Join Local Client* (Tugboat, for testing with Multiplayer Play Mode). `steam_appid.txt` contains `480` (Spacewar test AppID); replace it with the real AppID before a release.
 
 **Calibration:** if the loudness bar in the top-left corner does not react well to your voice, select the Player and either tweak *Silence Db* / *Scream Db* on `MicrophoneLoudness`, or right-click the component → **Calibrate Silence** (stay quiet for 2 seconds).
+
+## Building and Testing
+
+- **Windows build:** menu **Echo Protocol → Build → Windows (Release)** (or *Development*). Output goes to `Builds/Windows/EchoProtocol.exe`, with `steam_appid.txt` copied next to it. Headless: `Unity.exe -batchmode -quit -projectPath . -executeMethod EchoProtocol.EditorTools.EchoBuildPipeline.BuildWindowsRelease`.
+- **Tests:** *Window → General → Test Runner → EditMode*. They cover the pure game logic: hearing falloff, microphone dB → loudness buckets (with hysteresis), the noise registry and the relic dialogue tables.
+- Debug shortcuts go through `DebugKeys`, so they only exist in the Editor and in Development builds.
 
 ## Project Structure
 
