@@ -142,7 +142,9 @@ public class PlayerRagdoll : MonoBehaviour
 
     private void Update()
     {
-        if (_debugKey && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        // The debug key must only affect the local player, not the networked copies of the other players.
+        bool isLocalPlayer = !_player.IsSpawned || _player.IsOwner;
+        if (_debugKey && isLocalPlayer && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
         {
             Vector2 dir = Random.insideUnitCircle.normalized;
             TryRagdoll(new Vector3(dir.x * 6f, 5f, dir.y * 6f));

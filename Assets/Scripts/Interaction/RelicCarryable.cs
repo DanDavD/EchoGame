@@ -75,6 +75,10 @@ namespace EchoProtocol.Interaction
 
         private void OnCarrierChanged(NetworkObject prev, NetworkObject current, bool asServer)
         {
+            // A host receives this callback twice (server side, then client side) for the same object.
+            // Handle it once, otherwise pickup/drop events and relic dialogue fire twice.
+            if (!asServer && IsServerStarted) return;
+
             if (current != null)
             {
                 // Attached to player
@@ -273,7 +277,7 @@ namespace EchoProtocol.Interaction
         [ServerRpc(RequireOwnership = false)]
         public void ServerRequestPickup(NetworkObject playerNetObj)
         {
-            if (playerNetObj == null || IsCarried) return;
+            if (playerNetObj == null || IsCarried || IsLockedInAltar) return;
 
             // Distance check to prevent exploits
             float distSqr = (playerNetObj.transform.position - transform.position).sqrMagnitude;

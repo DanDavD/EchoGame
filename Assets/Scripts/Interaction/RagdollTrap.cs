@@ -19,6 +19,11 @@ public class RagdollTrap : MonoBehaviour
         PlayerRagdoll ragdoll = other.GetComponentInParent<PlayerRagdoll>();
         if (ragdoll == null) return;
 
+        // Every peer sees every avatar enter the trigger, but only the owner may simulate its own ragdoll;
+        // otherwise remote avatars would turn dynamic and fight their NetworkTransform.
+        var player = ragdoll.GetComponent<PlayerController>();
+        if (player != null && player.IsSpawned && !player.IsOwner) return;
+
         Vector3 horizontal = transform.forward;
         if (_randomDirection)
         {

@@ -142,7 +142,7 @@ namespace EchoProtocol.Player
         {
             if (_carriedRelic == null) return;
 
-            Vector3 throwDir = _playerController.CameraPivot != null ? _playerController.CameraPivot.forward : transform.forward;
+            // RelicCarryable.Interact computes the throw direction from the camera itself.
             _carriedRelic.Interact(_playerController);
         }
 

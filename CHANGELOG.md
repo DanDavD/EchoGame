@@ -5,6 +5,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Microphone (`MicrophoneLoudness.cs`)**: capture is now reference counted per device, so a remote avatar spawning (its copy of the component is disabled right away) no longer stops the local player's microphone. The loudness also no longer drops to silence for ~32 ms every second when the 1 s ring buffer wraps.
+- **Enemy (`EnemyBrain.cs`)**: an enraged monster now keeps tracking the nearest player in silence instead of standing at its last heard position (the world origin if it never heard anything); `Enrage` is ignored on remote clients, where the agent is disabled and `SetDestination` logged errors.
+- **Hearing (`HearingSensor.cs`)**: sources whose owner was destroyed are skipped instead of throwing.
+- **Ragdoll (`PlayerRagdoll.cs`, `RagdollTrap.cs`)**: the trap and the `R` debug key only ragdoll the *owner*; before, every peer turned remote avatars dynamic and fought their `NetworkTransform`.
+- **Relics (`RelicCarryable.cs`, `RelicBrain.cs`)**: a host no longer handles carrier changes twice (double pickup events and dialogue); clients no longer call observers RPCs (only the server sends dialogue and choir RPCs); a remote carrier's loudness is read from the networked `EchoVisionController`; the server rejects picking up a relic locked in the altar.
+- **Match flow (`GameExtractionManager.cs`)**: restarting a match resets the static full-illumination flag, so the next match no longer starts fully lit; `Instance` is cleared on destroy; a player build with a `NetworkManager` no longer creates networked primitives without a `NetworkObject`.
+- **Steam (`SteamLobbyManager.cs`)**: the lobby host no longer tries to connect to itself when `LobbyEnter_t` arrives before the server is reported as started; callbacks are disposed and the lobby is left in `OnDisable` (using `SteamManager` from `OnDestroy` could re-create it while quitting and throw).
+- **Bootstrap (`NetworkBootstrap.cs`)**: *Host Local* / *Join Local* no longer start a connection on the wrong transport when Tugboat is missing.
+- **Unity objects (`EnemyCatchReaction.cs`)**: replaced `??` on Unity components with explicit null checks (it bypasses Unity's overloaded `==`).
+
+### Changed
+- Replaced deprecated `FindFirstObjectByType` / `FindObjectsByType(..., FindObjectsSortMode)` calls with `FindAnyObjectByType` / `FindObjectsByType(FindObjectsInactive)` (removes the `CS0618` warnings).
+- Documentation brought back in sync with the code: README (status, structure, controls, roadmap), architecture (multiplayer is implemented, gameplay modules), enemy AI (catch distance, enrage), ragdoll (owner-only), networking (implementation notes, offline fallback, current limitations) and the living-relics design (real archetypes, class diagram, PR status).
+
+### Removed
+- Stray root files: `test.cs` (dead copy of the FishySteamworks transport), `fishy_contents.json`, `fishy_latest.json` and `fix_log.txt`.
+
 ### Added
 - **Central Altar & Receptacle System (`AltarReceptacle.cs` & `AltarSocket.cs`)**:
   - Interactive pedestal sockets implementing `IInteractable`, allowing players carrying living relics to lock them into the altar with `[E]`.

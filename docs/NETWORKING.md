@@ -78,4 +78,30 @@ sequenceDiagram
 | Enemy AI | **Server** | Server-authoritative `NetworkTransform` | `NavMeshAgent` and `HearingSensor` disabled on remote clients. |
 | Ragdoll Knockback | Server decides, Owner executes | Reliable `ObserversRpc` | `EnemyCatchReaction` invokes `RpcTriggerRagdoll` on the victim. |
 | Echolocation Pulses | Replicated across all peers | Quantized `SyncVar<float>` + `EchoShaderPublisher` | Up to 4 simultaneous spheres rendered in `EchoReveal.shader`. |
+| Relic Pick-up / Drop | Server | `SyncVar<NetworkObject>` carrier + `ServerRpc` | `RelicCarryable`: server validates distance (5 m) and ignores relics already locked in the altar. |
+| Relic Dialogue | Server → observers | `ObserversRpc` | `RelicBrain` picks the line on the server; clients only display and voice it. |
 | Voice Chat | Proximity Voice Plugin | Separate voice channel | Decided in audio polish phase. |
+
+---
+
+## 3. Implementation Notes
+
+- **Bootstrap:** `NetworkBootstrap` wires `NetworkManager`, the Steam and Tugboat transports, spawn points and the spawnable prefab list (Player, Enemy, Relic) at runtime, then spawns the enemy and a test relic when the server starts.
+- **Steam lobbies:** `SteamLobbyManager` hosts friends-only lobbies (max 4). A joining client reads `HostAddress` from the lobby data and connects through FishySteamworks. The lobby owner never connects to itself, even if `LobbyEnter_t` arrives before FishNet reports the server as started.
+- **Steam shutdown:** Steamworks callbacks are disposed and the lobby is left in `OnDisable`, because touching `SteamManager.Initialized` from `OnDestroy` can re-create the manager while quitting.
+- **SyncVar callbacks on the host:** a host receives `OnChange` twice (`asServer` true and false). Handlers that raise gameplay events (e.g. `RelicCarryable`) process only the server call on a host.
+- **Microphone:** capture is reference counted (see [Architecture](ARCHITECTURE.md)); remote avatars never open or close the local device.
+
+## 4. Offline Fallback
+
+If a scene has no `NetworkManager`, `OfflineSandboxGuard` flags scene `NetworkObject`s as non-networked and binds every `NetworkBehaviour`, so the sandbox runs as a plain single-player scene (`IsSpawned` / `IsOwner` are `false`). Gameplay code therefore branches on `IsSpawned` and keeps a local path.
+
+## 5. Current Limitations
+
+These are known gaps, tracked for the networking pass of the release branch:
+
+- **Altar, symphony and extraction are local:** `AltarReceptacle`, `AltarSocket`, `EscapePortal` and `GameExtractionManager` are plain `MonoBehaviour`s. A relic docked on one peer is not replicated, and the first player who touches the portal wins on that peer only.
+- **Relic spawning:** only one test relic is spawned by the server (`NetworkBootstrap`). The three sandbox relics are created locally by `GameExtractionManager` (editor only when a `NetworkManager` exists); a player build with a `NetworkManager` skips them.
+- **Remote carrier sensing:** `RelicBrain` reads the carrier's sprint state from `PlayerController`, which is only simulated on the owner. For a remote carrier the server sees no sprint, so only the mic and monster reactions work.
+- **Remote ragdoll state:** the server cannot tell whether a remote player is ragdolling or immune (see [Enemy AI](ENEMY_AI.md#known-limitations)).
+- **Debug keys** (`H`, `J`, `T`, `Y`, `R`, `V`) are active in every build and act locally.

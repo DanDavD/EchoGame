@@ -68,7 +68,7 @@ namespace EchoProtocol.Extraction
 
             if (_altar == null)
             {
-                _altar = FindFirstObjectByType<AltarReceptacle>();
+                _altar = FindAnyObjectByType<AltarReceptacle>();
             }
 
             _remainingTime = _extractionTimeLimit;
@@ -81,18 +81,26 @@ namespace EchoProtocol.Extraction
 
         private void SpawnRuntimeRelics()
         {
-            var existing = FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var existing = FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude);
             if (existing != null && existing.Length >= 3) return;
 
             // Networked prefab instances (NetworkObject) are only valid when a FishNet NetworkManager exists.
             // Offline sandbox play uses plain primitives to avoid "expected to be initialized" errors.
             GameObject prefab = null;
+            bool hasNetworkManager = FindAnyObjectByType<FishNet.Managing.NetworkManager>() != null;
 #if UNITY_EDITOR
-            if (FindFirstObjectByType<FishNet.Managing.NetworkManager>() != null)
+            if (hasNetworkManager)
             {
                 prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Relic_Test.prefab");
             }
 #endif
+            if (hasNetworkManager && prefab == null)
+            {
+                // In a networked player build the primitive fallback below would create NetworkBehaviours that
+                // have no NetworkObject, and every IsSpawned/IsOwner read would throw. Relics come from the server.
+                Debug.LogWarning("[GameExtractionManager] NetworkManager present but no relic prefab is available; skipping local relic spawn.");
+                return;
+            }
             (Vector3 pos, RelicPersonalityType personality, string name)[] relicData = new[]
             {
                 (new Vector3(-14f, 0.6f, 12f), RelicPersonalityType.SarcasticCritic, "Relic_ObsidianBob"),
@@ -196,8 +204,15 @@ namespace EchoProtocol.Extraction
             Debug.Log($"<color=red><b>[GameExtractionManager] EXTRACTION FAILED: {reason}</b></color>");
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
         public void RestartMatch()
         {
+            // The symphony flips a static flag; without this the next match would start fully lit.
+            EchoShaderPublisher.SetFullIllumination(false);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 

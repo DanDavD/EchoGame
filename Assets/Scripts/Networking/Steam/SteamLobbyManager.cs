@@ -88,6 +88,13 @@ namespace EchoProtocol.Networking.Steam
                 return;
             }
 
+            // The host also receives LobbyEnter_t for the lobby it just created. FishNet may not report the server
+            // as started yet at this point, so also compare against the lobby owner to avoid connecting to ourselves.
+            if (SteamMatchmaking.GetLobbyOwner(CurrentLobbyID) == SteamUser.GetSteamID())
+            {
+                return;
+            }
+
             Debug.Log("Entered Steam Lobby: " + CurrentLobbyID);
 
             string hostAddress = SteamMatchmaking.GetLobbyData(CurrentLobbyID, HostAddressKey);
@@ -112,9 +119,18 @@ namespace EchoProtocol.Networking.Steam
             }
         }
         
-        private void OnDestroy()
+        // OnDisable, not OnDestroy: SteamManager.Initialized re-creates a SteamManager if it is already gone,
+        // which throws "Tried to Initialize the SteamAPI twice" while the game is quitting.
+        private void OnDisable()
         {
             LeaveLobby();
+
+            LobbyCreated?.Dispose();
+            JoinRequest?.Dispose();
+            LobbyEntered?.Dispose();
+            LobbyCreated = null;
+            JoinRequest = null;
+            LobbyEntered = null;
         }
     }
 }

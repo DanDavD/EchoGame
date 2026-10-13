@@ -1,6 +1,6 @@
 # Echo Protocol — Architecture: "Living Relics" & Game Loop
 
-This document defines the technical architecture, game loop design, and 6-branch engineering plan to transform the current technical prototype into a complete, comedic, and demonstrable multiplayer game before November 1st.
+This document defines the technical architecture, game loop design, and 6-branch engineering plan to transform the technical prototype into a complete, comedic, and demonstrable multiplayer game before November 1st. Each section states what is **implemented** and what is still **planned**.
 
 ---
 
@@ -17,13 +17,13 @@ flowchart TD
 ```
 
 ### Core Design Rules
-1. **Voice is not just a flashlight; it is an interaction tool:** If the player screams into the microphone, the relic they are carrying panics and screams right back at them.
-2. **The relic is a walking hazard:** When chattering, complaining, or panicking, the relic reports noise directly to `NoiseRegistry`, alerting and attracting the blind monster.
+1. **Voice is not just a flashlight; it is an interaction tool:** If the player screams into the microphone, the relic they are carrying reacts and roasts them.
+2. **The relic is a walking hazard:** When chattering, complaining, or flying through the air, the relic reports noise directly to `NoiseRegistry`, alerting and attracting the blind monster.
 3. **The Symphonic Climax:** Placing all 3 relics on the central altar triggers an absurd choral symphony that permanently floods the cavern with light, unlocks the exit portal, and unleashes the monster into an unrelenting berserk frenzy.
 
 ---
 
-## 2. Living Relic Technical Architecture
+## 2. Living Relic Technical Architecture (implemented)
 
 ```mermaid
 classDiagram
@@ -34,88 +34,130 @@ classDiagram
         +void Interact(PlayerController player)
     }
 
-    class RelicCarryable {
-        -NetworkObject _netObj
-        -Rigidbody _rb
-        -Collider _col
-        -Transform _carrySocket
-        +bool IsCarried
-        +PlayerController Carrier
-        +void ServerPickup(PlayerController player)
-        +void ServerDrop(Vector3 impulse)
+    class INoiseSource {
+        <<interface>>
+        +Transform Owner
+        +float NoiseLevel01
     }
 
-    class RelicPersonality {
-        +string RelicName
-        +RelicState State
-        +AudioClip[] CalmClips
-        +AudioClip[] PanicClips
-        +AudioClip[] ScreamingClips
-        +AudioClip[] DroppedClips
-        +AudioClip SymphonyClip
+    class RelicCarryable {
+        +bool IsCarried
+        +bool IsLockedInAltar
+        +NetworkObject Carrier
+        +event OnPickedUp
+        +event OnDropped
+        +ForceDrop(Vector3 impulse)
+        +LockToAltar(Transform mount)
     }
 
     class RelicBrain {
-        -RelicState _state
-        -float _panicMeter
-        -INoiseSource _noiseSource
-        +void EvaluateEnvironment()
-        +void TriggerDialogue(string category)
+        +RelicPersonalityType Personality
+        +TriggerDialogue(category)
+        +StartSymphonyChoir()
     }
 
+    class RelicPersonality {
+        <<static>>
+        +GetProfile(type)
+        +GetLine(type, category, index)
+    }
+
+    class RelicVoiceSynthesizer
+    class RelicDialogueUI
+    class AltarSocket
+    class AltarReceptacle
+
     IInteractable <|.. RelicCarryable
-    RelicCarryable --> RelicBrain
+    IInteractable <|.. AltarSocket
+    IInteractable <|.. AltarReceptacle
+    INoiseSource <|.. RelicBrain
+    RelicBrain --> RelicCarryable
     RelicBrain --> RelicPersonality
+    RelicBrain --> RelicVoiceSynthesizer
+    RelicBrain --> RelicDialogueUI
+    AltarReceptacle o-- AltarSocket
+    AltarSocket --> RelicCarryable : locks
 ```
 
-### Relic Components:
-1. **`RelicCarryable.cs` (NetworkBehaviour & `IInteractable`):**
-   - Handles parenting to the player's carry socket upon pressing `E`.
-   - While carried: `Rigidbody.isKinematic = true` and colliders are temporarily disabled.
-   - If the carrier is hit into ragdoll (`PlayerRagdoll.OnRagdollStarted`), the relic automatically unparents and launches with outward physics momentum.
-2. **`RelicBrain.cs` (NetworkBehaviour):**
-   - Emotional state machine:
-     - `IdleWaiting`: Resting alone on a pedestal in the dark. Murmurs occasional self-pity lines to help players track it by sound.
-     - `CarriedCalm`: Player is sneaking or standing still.
-     - `CarriedAnxious`: Player is sprinting (`Shift`) or jumping.
-     - `FullPanic`: Carrier screams into mic (`Level01 > 0.7`) or the monster is within 6 metres.
-     - `DroppedRagdoll`: Tumbling on the floor after a crash, hurling bitter complaints.
-     - `SymphonyChoir`: Anchored to the altar harmonizing with the other relics.
-3. **`RelicNoiseEmitter.cs` (`INoiseSource`):**
-   - Whenever the relic talks, whines, or screams, it feeds its noise level into `NoiseRegistry`. The blind monster's `HearingSensor` can hear the relic and hunt the carrier.
-4. **`RelicVisuals.cs`:**
-   - Glowing eye/light materials reacting to emotion: **Soft Blue** (calm), **Pulsing Yellow** (anxious), **Strobing Red** (screaming crisis).
+### Relic Components
+1. **`RelicCarryable.cs` (`NetworkBehaviour`, `IInteractable`):**
+   - `E` picks the relic up (server validates distance), `E`/`G` drops it. The carrier is a `SyncVar<NetworkObject>`; while carried the Rigidbody is kinematic, the collider is off and the relic is glued to the carrier's `CarrySocket`.
+   - If the carrier is knocked into ragdoll (`PlayerRagdoll.OnRagdollStarted`), `PlayerInteraction` calls `ForceDrop` and the relic is launched with outward physics momentum.
+   - `LockToAltar` permanently parents the relic to an altar socket.
+2. **`RelicBrain.cs` (`NetworkBehaviour`, `INoiseSource`):**
+   - There is no explicit state enum: behaviour is driven by timers and thresholds that raise *dialogue categories* (`RelicDialogueCategory`), and by flight detection.
+
+   | Category | Trigger |
+   |---|---|
+   | `IdleSleep` | Left alone on the ground (periodic murmur, helps players locate it by sound). |
+   | `Pickup` / `NormalDrop` | Picked up / dropped gently. |
+   | `CarryChatter` | Random chatter every ~16 s while carried. |
+   | `Sprinting` | Carrier sprints above 4 m/s for 2.2 s. |
+   | `MicReaction` | Carrier voice `Level01` ≥ 0.38 for 0.7 s (also emits noise 0.6). |
+   | `MonsterNear` | A non-idle monster within 14 m (15 s cooldown). |
+   | `FlyingScream` / `LandedImpact` | Speed ≥ 11.5 m/s after a throw or ragdoll launch; impact on landing. |
+   | `AltarPlaced` | Docked into an altar socket. |
+
+   - **Noise reported to `NoiseRegistry`:** talking 0.08, mic reaction 0.60, impact 0.70, flying scream 0.95, symphony choir 0.60 (continuous). The blind monster's `HearingSensor` hears all of it.
+   - On the server the brain picks the line and sends it to every peer (`ObserversRpc`).
+3. **`RelicPersonality.cs`:** static repository of profiles (name, title, colors, base pitch) and comedy lines per archetype and category.
+4. **`RelicVoiceSynthesizer.cs`:** procedural audio with zero external assets: speech blips, a looping Doppler scream while airborne, impact bonks and the altar choir.
+5. **`RelicDialogueUI.cs`:** screen-space dialogue card with typewriter text plus a floating world-space bubble above the relic.
+
+*Planned, not implemented:* emotion-colored glowing eyes (`RelicVisuals`, soft blue / pulsing yellow / strobing red).
+
+Debug keys: `T` cycles the personality archetype, `Y` forces a random roast.
 
 ---
 
-## 3. The 3 Personalities & Voice Lines
+## 3. The Personalities & Voice
 
-Designed for emergent co-op comedy and viral streamer moments:
+Four archetypes exist today (`RelicPersonalityType`); the sandbox spawns the first three, and the fourth is available for the altar/level work:
 
-| Reliquia | Name & Archetype | Personality | Sample Voice Lines / Floating Subtitles |
+| Archetype | Name & Title | Personality | Voice |
 |---|---|---|---|
-| **#1** | **"Kevin"** *(The Paranoiac Coward)* | Obsessed with silence, terrified of being eaten | • *Quiet:* "Tell me you're not breathing that loudly on purpose..."<br>• *Sprinting:* "Don't run! Your knees crack like dry firewood!"<br>• *Mic Scream:* "WHY ARE WE SCREAMING?! HE'S GONNA EAT US, YOU IDIOT!"<br>• *On the Floor:* "I chipped a corner! Pick me up before I get stepped on!" |
-| **#2** | **"Lord Bob"** *(The Grumpy Aristocrat)* | Arrogant, haughty, disgusted by physical touch | • *Quiet:* "Walk with some decorum, peasant."<br>• *Sprinting:* "Unhand me, beast! Your vulgar trotting gives me motion sickness!"<br>• *Mic Scream:* "Shut up, you acoustic illiterate! You are ruining my peace!"<br>• *On the Floor:* "The floor is filthy! I will have you demoted once we escape!" |
-| **#3** | **"Pip"** *(The High-Pitched Hysteric)* | Hyperactive, high-pitched whistle shriek | • *Quiet:* "Hehe... it's dark... very dark... too dark..."<br>• *Sprinting:* "Weeeee! Wait, no, stop, I don't like it, aaaaaah!"<br>• *Mic Scream:* "AAAAAAAAAAAAAAAAAAAH!" *(piercing teapot shriek)*<br>• *On the Floor:* "Help! I am spherical and I can't stop rolling toward the teeth!" |
+| `SarcasticCritic` | **Obsidian Bob** | Cynical gamer meta-commentary: Steam refunds, posture, cardio roasts. | Mid FM-synth buzz. |
+| `AnxiousCoward` | **Nervous Nelly** | Neurotic horror-trope coward who begs the player to whisper. | High, jittery falsetto; siren-like scream. |
+| `DumbGloop` | **Gloop the Box** | Goofy babbler that celebrates being an aerodynamic cube. | Bouncy boing/bloop sweeps; kazoo scream. |
+| `GrumpyElder` | **Lord Malakor** | Pompous celestial sovereign offended by mortal hands; threatens to curse your Wi-Fi. | Low saw/organ hum; booming roar. |
+
+Each one also hums its own part of the symphony: Bob a C4/E4 drone, Nelly an A4 soprano with vibrato, Gloop an E3 pulsing chant, Malakor a deep A2 drone.
+
+Examples of their post-match lines (from `GameExtractionManager`):
+- *Obsidian Bob:* "Don't get cocky. My specular highlight is permanently scratched. 3 stars out of 5."
+- *Nervous Nelly:* "WAIT, WE ACTUALLY LIVED?! I had already uninstalled myself in protest!"
+- *Lord Malakor:* "A passable retreat, serf. You may now polish my royal casing with micro-fiber silk."
 
 ---
 
 ## 4. The Altar & Extraction Climax (`Altar & Escape`)
 
 1. **The Central Altar:**
-   - Features 3 receptacles (`AltarSocket`). Pressing `E` while carrying a relic deposits it into the active socket.
-   - Each slotted relic begins vibrating and emitting a soft golden pulse.
+   - `AltarReceptacle` owns 3 `AltarSocket`s. Pressing `E` while carrying a relic docks it into the **closest empty** socket; the relic locks in place and says an `AltarPlaced` line.
+   - Socket lights turn from cyan (dormant) to golden (filled); the HUD shows `[filled/3]`.
 2. **Activating the Symphony (3/3):**
-   - When all 3 relics are placed, they turn toward each other and sing an absurd, cacophonous alien choral harmony.
-   - **Visuals:** Calls `EchoShaderPublisher` to emit a continuous, infinite-radius global echo sphere (the entire cavern remains permanently illuminated).
-   - **Monster AI:** The monster lets out an enraged shriek and enters permanent `EnemyState.Hunt` with increased speed (7 m/s), bypassing wander/investigate cooldowns.
-   - **Escape Portal:** Unlocks the exit gateway with a 45-second countdown before cave collapse.
+   - Every docked relic starts its choir loop (`RelicBrain.StartSymphonyChoir`) and keeps emitting noise.
+   - **Visuals:** `EchoShaderPublisher.SetFullIllumination(true)` floods the cavern with permanent golden light.
+   - **Monster AI:** `EnemyBrain.EnrageAll(7)` puts the monster in a permanent hunt at 7 m/s that tracks the nearest player even in silence.
+   - **Escape Portal:** `GameExtractionManager.StartExtraction` unlocks the portal and starts a 45-second countdown.
+3. **Resolution:** a player reaching the active portal wins (Victory, rank S+ with a random relic quote); the timer reaching zero loses (Defeat). `R` restarts the match and resets full illumination.
+
+> Current limitation: the altar/extraction loop is local; replicating it is part of the release-build pass. See [Networking limitations](NETWORKING.md#5-current-limitations).
 
 ---
 
 ## 5. Engineering Plan (6 Substantial PRs to a Playable Demo)
 
-A structured, trunk-based roadmap to deliver a polished vertical slice before November 1st:
+A structured, trunk-based roadmap to deliver a polished vertical slice before November 1st. Status as of October 2026:
+
+| PR | Branch | Status |
+|---|---|---|
+| 9 | `feat/interaction-and-carrying` | ✅ Merged |
+| 10 | `feat/living-relic-personality` | ✅ Merged |
+| 11 | `feat/altar-symphony-extraction` | ✅ Merged |
+| 12 | `feat/modular-dungeon-level` | ⏳ Pending (the sandbox is still the flat 120×120 m arena) |
+| 13 | `feat/audio-ambience-retro-vfx` | ⏳ Pending (`feat/ps1-like-textures` holds an early PS1 shader attempt with a URP Render Graph fix outstanding) |
+| 14 | `feat/ui-menu-and-release-build` | ⏳ Pending |
 
 ```
 [ main ]
@@ -153,14 +195,14 @@ A structured, trunk-based roadmap to deliver a polished vertical slice before No
 - Automatic drop decoupling on ragdoll impact (`PlayerRagdoll.OnRagdollStarted`) applying physical launch velocity.
 
 #### Branch 2 (PR 10): `feat/living-relic-personality`
-- `RelicBrain`: Panic state machine observing carrier microphone loudness (`MicrophoneLoudness`).
-- Positional 3D audio playback and floating comic-styled speech bubbles.
-- `INoiseSource` integration: Relic shrieks and chattering register into `NoiseRegistry`, alerting the monster.
+- `RelicBrain`: reaction system observing carrier sprint, microphone loudness and monster proximity.
+- Procedural 3D audio playback and floating comic-styled speech bubbles.
+- `INoiseSource` integration: relic shrieks and chattering register into `NoiseRegistry`, alerting the monster.
 
 #### Branch 3 (PR 11): `feat/altar-symphony-extraction`
-- Ancestral Altar prefab with 3 networked sockets.
-- "The Symphony" event: 3-part choral playback, permanent global echolocation reveal, and monster berserk trigger.
-- Extraction trigger detecting players reaching the exit portal with Win/Loss screen logic.
+- Altar with 3 sockets (local objects; networking pending).
+- "The Symphony" event: 3-part choral playback, permanent global illumination, and monster berserk trigger.
+- Extraction portal with Win/Loss screen logic.
 
 #### Branch 4 (PR 12): `feat/modular-dungeon-level`
 - Level design: Replaces flat sandbox arena with a claustrophobic catacomb maze featuring columns, narrow hallways, blind corners, and relic shrines.

@@ -117,13 +117,24 @@ namespace EchoProtocol.Relics
             _isAirborneFlying = false;
             _synthesizer.StopFlyingScream();
             _carrierController = carrierNetObj != null ? carrierNetObj.GetComponent<PlayerController>() : null;
-            _carrierVoiceSource = carrierNetObj != null ? carrierNetObj.GetComponent<IVoiceLevelSource>() : null;
+            _carrierVoiceSource = carrierNetObj != null ? ResolveVoiceSource(carrierNetObj) : null;
 
             _chatterTimer = Random.Range(5f, _carryChatterInterval);
             _sprintTimer = 0f;
             _micTimer = 0f;
 
             TriggerDialogue(RelicDialogueCategory.Pickup);
+        }
+
+        /// <summary>
+        /// Prefers the networked EchoVisionController: on the server, a remote carrier's MicrophoneLoudness is
+        /// disabled and always reads 0, while EchoVisionController exposes the loudness replicated from the client.
+        /// </summary>
+        private static IVoiceLevelSource ResolveVoiceSource(NetworkObject carrier)
+        {
+            var networked = carrier.GetComponent<EchoVisionController>();
+            if (networked != null) return networked;
+            return carrier.GetComponent<IVoiceLevelSource>();
         }
 
         private void HandleDropped(NetworkObject previousCarrier)
@@ -308,7 +319,8 @@ namespace EchoProtocol.Relics
 
             if (IsSpawned)
             {
-                RpcPlayDialogue(_personality, category, selectedIndex, isScream);
+                // Observers RPCs can only be sent by the server; clients receive the line from it.
+                if (IsServerStarted) RpcPlayDialogue(_personality, category, selectedIndex, isScream);
             }
             else
             {
@@ -351,7 +363,7 @@ namespace EchoProtocol.Relics
 
             if (IsSpawned)
             {
-                RpcStartSymphonyChoir();
+                if (IsServerStarted) RpcStartSymphonyChoir();
             }
             else
             {

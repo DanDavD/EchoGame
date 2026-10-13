@@ -76,6 +76,7 @@ public class HearingSensor : MonoBehaviour
         for (int i = 0; i < sources.Count; i++)
         {
             Transform owner = sources[i].Owner;
+            if (owner == null) continue; // emitter destroyed without unregistering
             float distance = Vector3.Distance(ears, owner.position);
 
             // Linear falloff: full loudness at 0 m, silent at max range.

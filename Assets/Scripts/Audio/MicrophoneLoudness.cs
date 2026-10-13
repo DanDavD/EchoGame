@@ -64,6 +64,26 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private float[] _buffer;
     private bool _calibrating;
     private float _debugBurstTimer;
+    private float _lastMicTarget;
+
+    // A microphone device is a process-wide resource. Remote avatars carry this component too (it is disabled
+    // right after spawn), so Start/End must be reference counted or a remote spawn would kill the local capture.
+    private sealed class SharedCapture
+    {
+        public AudioClip Clip;
+        public int Users;
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<string, SharedCapture> s_captures =
+        new System.Collections.Generic.Dictionary<string, SharedCapture>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetCaptures()
+    {
+        s_captures.Clear();
+    }
+
+    private static string CaptureKey(string device) => device ?? string.Empty;
 
     private void OnEnable()
     {
@@ -77,6 +97,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     private void StartCapture()
     {
+        if (_clip != null) return;
+
         if (Microphone.devices.Length == 0)
         {
             Debug.LogWarning("[MicrophoneLoudness] No microphone detected.", this);
@@ -86,16 +108,30 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         _device = string.IsNullOrEmpty(_deviceName) ? null : _deviceName;
         _buffer = new float[_sampleWindow];
 
-        // 1-second looping clip: we only ever read the newest few ms, so a tiny buffer is enough.
-        _clip = Microphone.Start(_device, true, 1, _sampleRate);
-        Debug.Log($"[MicrophoneLoudness] Capturing from '{(_device ?? "default")}' ({string.Join(", ", Microphone.devices)}).", this);
+        if (!s_captures.TryGetValue(CaptureKey(_device), out SharedCapture capture) || capture.Users <= 0)
+        {
+            // 1-second looping clip: we only ever read the newest few ms, so a tiny buffer is enough.
+            capture = new SharedCapture { Clip = Microphone.Start(_device, true, 1, _sampleRate) };
+            s_captures[CaptureKey(_device)] = capture;
+            Debug.Log($"[MicrophoneLoudness] Capturing from '{(_device ?? "default")}' ({string.Join(", ", Microphone.devices)}).", this);
+        }
+
+        capture.Users++;
+        _clip = capture.Clip;
     }
 
     private void StopCapture()
     {
         if (_clip == null) return;
-        if (Microphone.IsRecording(_device)) Microphone.End(_device);
         _clip = null;
+        _lastMicTarget = 0f;
+
+        if (!s_captures.TryGetValue(CaptureKey(_device), out SharedCapture capture)) return;
+        capture.Users--;
+        if (capture.Users > 0) return;
+
+        s_captures.Remove(CaptureKey(_device));
+        if (Microphone.IsRecording(_device)) Microphone.End(_device);
     }
 
     private void Update()
@@ -128,8 +164,11 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     {
         int pos = Microphone.GetPosition(_device);
         int start = pos - _sampleWindow;
-        // Mic not started yet, or we just looped around the clip: return silence
-        if (start < 0) return 0f;
+        // Mic not started yet: nothing to read.
+        if (pos <= 0 && !Microphone.IsRecording(_device)) return 0f;
+        // The write head just looped around the 1 s clip, so the newest window is split across the seam.
+        // Hold the previous reading for those ~32 ms instead of dropping to silence once per second.
+        if (start < 0) return _lastMicTarget;
 
         _clip.GetData(_buffer, start);
 
@@ -138,8 +177,10 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         float rms = Mathf.Sqrt(sum / _buffer.Length);
 
         CurrentDb = rms > 1e-6f ? 20f * Mathf.Log10(rms) : -80f;
-        if (CurrentDb <= _silenceDb) return 0f;
-        return Mathf.Clamp01(Mathf.InverseLerp(_silenceDb, _screamDb, CurrentDb));
+        _lastMicTarget = CurrentDb <= _silenceDb
+            ? 0f
+            : Mathf.Clamp01(Mathf.InverseLerp(_silenceDb, _screamDb, CurrentDb));
+        return _lastMicTarget;
     }
 
     private void UpdateState()
