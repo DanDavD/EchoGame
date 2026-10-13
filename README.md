@@ -58,8 +58,8 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 1. Clone the repository. The project uses **Git LFS**, so install it first (`git lfs install`).
 2. Open the folder in Unity Hub with the exact editor version above.
-3. Open `Assets/Scenes/Sandbox_Test.unity`.
-   - If it does not exist, use the menu **Echo Protocol → Build Sandbox Scene**.
+3. Open `Assets/Scenes/Dungeon_Main.unity` (the catacombs level). `Sandbox_Test.unity` is the small test arena.
+   - If `Dungeon_Main` does not exist, use the menu **Echo Protocol → Build → Dungeon Scene (Catacombs)**.
 4. Press **Play** and talk into your microphone.
 
 **Controls:** `WASD` move · `Mouse` look · `Space` jump · `Shift` sprint · `E` interact / pick up / place relic · `G` drop relic · `Esc` release cursor.
@@ -73,7 +73,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 ## Building and Testing
 
 - **Windows build:** menu **Echo Protocol → Build → Windows (Release)** (or *Development*). Output goes to `Builds/Windows/EchoProtocol.exe`, with `steam_appid.txt` copied next to it. Headless: `Unity.exe -batchmode -quit -projectPath . -executeMethod EchoProtocol.EditorTools.EchoBuildPipeline.BuildWindowsRelease`.
-- **Tests:** *Window → General → Test Runner → EditMode*. They cover the pure game logic: hearing falloff, microphone dB → loudness buckets (with hysteresis), the noise registry and the relic dialogue tables.
+- **Tests:** *Window → General → Test Runner*. **EditMode** covers the pure game logic (hearing falloff, microphone dB → loudness buckets with hysteresis, the noise registry, relic dialogue tables and the dungeon map parser/validator). **PlayMode** loads `Dungeon_Main` and checks the level is completable: spawns, relics, NavMesh paths to every objective, and a full win through the exit portal.
 - Debug shortcuts go through `DebugKeys`, so they only exist in the Editor and in Development builds.
 
 ## Project Structure
@@ -91,9 +91,10 @@ Assets/
 │   ├── Relics/        # Living relic brain, personalities, procedural voice, dialogue UI
 │   ├── Altar/         # Altar receptacle and sockets (symphony trigger)
 │   ├── Extraction/    # Escape portal and match flow (victory / defeat)
+│   ├── Level/         # Text-map dungeon parser/validator and spawn points
 │   ├── Networking/    # Fish-Net / Steam code (bootstrap, lobbies)
 │   ├── UI/            # (planned) Menus and HUD
-│   └── Editor/        # Editor tooling (sandbox scene builder)
+│   └── Editor/        # Editor tooling (dungeon + sandbox builders, Windows build pipeline)
 ├── Shaders/           # EchoReveal URP shader
 ├── Art/  Audio/  Prefabs/  Scenes/  Settings/  ThirdParty/
 ```
@@ -105,6 +106,7 @@ Assets/
 - 🤸 [Player ragdoll](docs/RAGDOLL.md)
 - 🌐 [Networking architecture (Fish-Net + Steam)](docs/NETWORKING.md)
 - 🗿 [Living relics, altar & game loop](docs/LIVING_RELICS_DESIGN.md)
+- 🕳️ [Level design: the catacombs](docs/LEVEL_DESIGN.md)
 - 🤝 [Contributing & Git workflow](CONTRIBUTING.md)
 - 📝 [Changelog](CHANGELOG.md)
 
@@ -124,7 +126,7 @@ Assets/
 - [x] Interaction and relic carrying
 - [x] Living relics: personalities, procedural voices, monster-attracting noise
 - [x] Altar, symphony choir and extraction portal (victory / defeat flow)
-- [ ] Modular dungeon level (replaces the flat sandbox arena)
+- [x] Catacombs dungeon level generated from a text map, with spawn points and a validated, tested layout
 - [ ] Ambience audio, monster SFX and retro/dither VFX
 - [ ] Main menu, mic calibration UI and verified release build
 - [ ] Network the altar / extraction loop and relic spawning
