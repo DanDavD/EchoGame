@@ -396,10 +396,9 @@ namespace EchoProtocol.Relics
 
         private void HandleDebugKeys()
         {
-            if (Keyboard.current == null) return;
 
             // [T] Key: Cycle personality archetype
-            if (Keyboard.current.tKey.wasPressedThisFrame)
+            if (DebugKeys.WasPressed(Key.T))
             {
                 int next = ((int)_personality + 1) % 4;
                 SetPersonality((RelicPersonalityType)next);
@@ -407,7 +406,7 @@ namespace EchoProtocol.Relics
             }
 
             // [Y] Key: Force comedy line
-            if (Keyboard.current.yKey.wasPressedThisFrame)
+            if (DebugKeys.WasPressed(Key.Y))
             {
                 RelicDialogueCategory[] cats = { RelicDialogueCategory.CarryChatter, RelicDialogueCategory.Sprinting, RelicDialogueCategory.MicReaction, RelicDialogueCategory.MonsterNear };
                 var randomCat = cats[Random.Range(0, cats.Length)];
