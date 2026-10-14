@@ -57,8 +57,20 @@ public class SteamManager : MonoBehaviour {
 	{
 		s_EverInitialized = false;
 		s_instance = null;
+		s_IsQuitting = false;
+		Application.quitting -= OnApplicationQuitting;
+		Application.quitting += OnApplicationQuitting;
 	}
 #endif
+
+	// Echo Protocol change: the "initialized twice" guard exists to catch a SteamManager re-created by some OnDestroy while
+	// the game is quitting. A manager that was destroyed on purpose (it shuts the API down in OnDestroy), for example when
+	// the networking rig is rebuilt after leaving a scene, may initialize again, so only guard while quitting.
+	protected static bool s_IsQuitting = false;
+
+	private static void OnApplicationQuitting() {
+		s_IsQuitting = true;
+	}
 
 	protected virtual void Awake() {
 		// Only one instance of SteamManager at a time!
@@ -68,7 +80,7 @@ public class SteamManager : MonoBehaviour {
 		}
 		s_instance = this;
 
-		if(s_EverInitialized) {
+		if(s_EverInitialized && s_IsQuitting) {
 			// This is almost always an error.
 			// The most common case where this happens is when SteamManager gets destroyed because of Application.Quit(),
 			// and then some Steamworks code in some other OnDestroy gets called afterwards, creating a new SteamManager.
@@ -78,6 +90,12 @@ public class SteamManager : MonoBehaviour {
 
 		// We want our SteamManager Instance to persist across scenes.
 		DontDestroyOnLoad(gameObject);
+
+		// Echo Protocol change: -echo-no-steam keeps the game (and the automated tests) away from the Steam client.
+		if (EchoProtocol.Networking.Core.LaunchOptions.SteamDisabled(System.Environment.GetCommandLineArgs())) {
+			Debug.Log("[Steamworks.NET] Disabled by -echo-no-steam; running without Steam.");
+			return;
+		}
 
 		if (!Packsize.Test()) {
 			Debug.LogError("[Steamworks.NET] Packsize Test returned false, the wrong version of Steamworks.NET is being run in this platform.", this);

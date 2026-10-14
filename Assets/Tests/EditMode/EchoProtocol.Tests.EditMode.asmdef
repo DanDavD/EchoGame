@@ -4,7 +4,12 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "EchoProtocol.Core"
+        "EchoProtocol.Core",
+        "EchoProtocol.Networking",
+        "EchoProtocol.Editor",
+        "FishNet.Runtime",
+        "FishySteamworks",
+        "com.rlabrecque.steamworks.net"
     ],
     "includePlatforms": [
         "Editor"

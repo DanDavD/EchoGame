@@ -22,7 +22,8 @@ namespace EchoProtocol.Networking.Steam
 
             if (!SteamManager.Initialized)
             {
-                Debug.LogError("SteamManager is not initialized! Lobby manager will not work.");
+                // Steam is optional: local hosting and joining work without it, so this is not an error.
+                Debug.LogWarning("Steam is not initialized. Steam lobbies are unavailable; local hosting still works.");
                 return;
             }
 
