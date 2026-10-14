@@ -3,18 +3,16 @@ using System.Collections.Generic;
 using EchoProtocol.Altar;
 using EchoProtocol.Extraction;
 using EchoProtocol.Level;
-using EchoProtocol.Relics;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
 namespace EchoProtocol.Tests
 {
     /// <summary>
-    /// Loads the generated catacombs scene and checks that a full match is physically possible:
-    /// everything the match flow needs exists, and the NavMesh links the start to every objective.
+    /// The static content of the generated catacombs scene, checked without starting the network: every system the match
+    /// needs exists and the NavMesh links the start to every objective.
     /// </summary>
     public class DungeonSceneTests
     {
@@ -23,20 +21,33 @@ namespace EchoProtocol.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
-            // Let Awake/Start run (relics are spawned in GameExtractionManager.Start) and physics settle.
-            for (int i = 0; i < 5; i++) yield return null;
-            yield return new WaitForFixedUpdate();
+            Debug.Log("[TEST] start " + TestContext.CurrentContext.Test.Name);
+            yield return NetTestUtil.LoadScene(SceneName);
+        }
+
+        [UnityTearDown]
+        public IEnumerator Cleanup()
+        {
+            yield return NetTestUtil.DestroyRig();
         }
 
         [UnityTest]
         public IEnumerator Scene_HasEverythingTheMatchNeeds()
         {
-            Assert.IsNotNull(Object.FindAnyObjectByType<PlayerController>(), "player");
             Assert.IsNotNull(Object.FindAnyObjectByType<AltarReceptacle>(), "altar");
             Assert.IsNotNull(GameExtractionManager.Instance, "match manager");
             Assert.AreEqual(1, EscapePortal.AllPortals.Count, "exit portal");
             Assert.AreEqual(3, Object.FindAnyObjectByType<AltarReceptacle>().RequiredSocketsCount, "altar sockets");
+            Assert.IsNotNull(NetTestUtil.FindBootstrap(), "the network rig must be part of the scene");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Scene_HoldsNoPlayerOrMonsterOfItsOwn()
+        {
+            // They are spawned by the network at the spawn points; a scene copy would duplicate them.
+            Assert.IsNull(Object.FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include), "scene player");
+            Assert.IsNull(Object.FindAnyObjectByType<EnemyBrain>(FindObjectsInactive.Include), "scene monster");
             yield return null;
         }
 
@@ -46,32 +57,6 @@ namespace EchoProtocol.Tests
             Assert.GreaterOrEqual(SpawnRegistry.Get(SpawnKind.Player).Count, 2, "player spawns (co-op needs two)");
             Assert.AreEqual(3, SpawnRegistry.Get(SpawnKind.Relic).Count, "relic spawns");
             Assert.GreaterOrEqual(SpawnRegistry.Get(SpawnKind.Enemy).Count, 1, "enemy spawn");
-            yield return null;
-        }
-
-        [UnityTest]
-        public IEnumerator Relics_AppearAtTheirShrines()
-        {
-            var relics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude);
-            Assert.AreEqual(3, relics.Length, "relic count");
-
-            foreach (SpawnPoint shrine in SpawnRegistry.Get(SpawnKind.Relic))
-            {
-                bool found = false;
-                foreach (RelicBrain relic in relics)
-                {
-                    if (Vector3.Distance(relic.transform.position, shrine.transform.position) < 1.5f) found = true;
-                }
-                Assert.IsTrue(found, $"no relic near {shrine.name}");
-            }
-            yield return null;
-        }
-
-        [UnityTest]
-        public IEnumerator Monster_StandsOnTheNavMesh()
-        {
-            var agent = Object.FindAnyObjectByType<EnemyBrain>().GetComponent<NavMeshAgent>();
-            Assert.IsTrue(agent.isOnNavMesh, "the monster must be placed on the baked NavMesh");
             yield return null;
         }
 
@@ -91,7 +76,8 @@ namespace EchoProtocol.Tests
             var targets = new List<(string label, Vector3 position)>
             {
                 ("altar", Object.FindAnyObjectByType<AltarReceptacle>().transform.position),
-                ("exit portal approach", PortalApproachPoint(Object.FindAnyObjectByType<EscapePortal>()))
+                ("exit portal approach", PortalApproachPoint(Object.FindAnyObjectByType<EscapePortal>())),
+                ("monster spawn", SpawnRegistry.First(SpawnKind.Enemy).transform.position)
             };
             foreach (SpawnPoint shrine in SpawnRegistry.Get(SpawnKind.Relic)) targets.Add((shrine.name, shrine.transform.position));
 
@@ -117,33 +103,6 @@ namespace EchoProtocol.Tests
 
             Assert.IsEmpty(problems, "unreachable objectives:\n" + string.Join("\n", problems));
             yield return null;
-        }
-
-        [UnityTest]
-        public IEnumerator Match_CanBeWon_ThroughTheExitPortal()
-        {
-            var altar = Object.FindAnyObjectByType<AltarReceptacle>();
-            var portal = Object.FindAnyObjectByType<EscapePortal>();
-            var player = Object.FindAnyObjectByType<PlayerController>();
-            var controller = player.GetComponent<CharacterController>();
-
-            Assert.IsFalse(portal.IsActive, "the exit must start locked");
-
-            altar.TriggerSymphonyClimax();
-            yield return null;
-
-            Assert.IsTrue(portal.IsActive, "completing the altar must unlock the exit");
-            Assert.AreEqual(ExtractionState.ExtractionActive, GameExtractionManager.Instance.State);
-
-            // Teleport the player into the portal trigger.
-            controller.enabled = false;
-            player.transform.position = portal.transform.position + Vector3.up * 0.5f;
-            controller.enabled = true;
-            yield return new WaitForFixedUpdate();
-            yield return new WaitForFixedUpdate();
-            yield return null;
-
-            Assert.AreEqual(ExtractionState.Victory, GameExtractionManager.Instance.State);
         }
     }
 }

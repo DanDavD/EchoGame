@@ -4,7 +4,6 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using EchoProtocol.Level;
 using EchoProtocol.Relics;
@@ -15,7 +14,7 @@ namespace EchoProtocol.EditorTools
     /// Generates the playable catacombs level from the ASCII map in <c>Assets/Level/Catacombs.txt</c>.
     /// Menu: Echo Protocol > Build > Dungeon Scene (Catacombs). Edit the text map, rebuild, done.
     /// The scene is fully derived data: floor, merged wall runs, ceiling, pillars, traps, altar, exit portal,
-    /// spawn points for players / relics / monster and a baked NavMesh saved next to the scene.
+    /// spawn points for players / relics / monster, a baked NavMesh saved next to the scene and the network rig.
     /// </summary>
     public static class DungeonBuilder
     {
@@ -46,10 +45,9 @@ namespace EchoProtocol.EditorTools
         {
             var layoutAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LayoutPath);
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(EchoSandboxBuilder.ShaderPath);
-            var actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(EchoSandboxBuilder.ActionsPath);
-            if (layoutAsset == null || shader == null || actions == null)
+            if (layoutAsset == null || shader == null)
             {
-                Debug.LogError($"[DungeonBuilder] Missing layout ({LayoutPath}), shader or input actions.");
+                Debug.LogError($"[DungeonBuilder] Missing layout ({LayoutPath}) or shader.");
                 return;
             }
 
@@ -77,7 +75,6 @@ namespace EchoProtocol.EditorTools
             Material floorMat = EchoSandboxBuilder.GetOrCreateMaterial("Assets/Art/Materials/Echo_Floor.mat", shader, checker, new Color(0.55f, 0.55f, 0.6f), 0.5f);
             Material wallMat = EchoSandboxBuilder.GetOrCreateMaterial("Assets/Art/Materials/Echo_Wall.mat", shader, checker, new Color(0.65f, 0.45f, 0.45f), 0.5f);
             Material propMat = EchoSandboxBuilder.GetOrCreateMaterial("Assets/Art/Materials/Echo_Prop.mat", shader, checker, new Color(0.45f, 0.65f, 0.55f), 1f);
-            Material enemyMat = EchoSandboxBuilder.GetOrCreateMaterial("Assets/Art/Materials/Echo_Enemy.mat", shader, checker, new Color(0.8f, 0.12f, 0.12f), 1f);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -101,21 +98,24 @@ namespace EchoProtocol.EditorTools
                 grid.CellToWorld(exit.x, exit.y, CellSize) + wallOffset,
                 portalRot);
 
-            // Bake after the altar and portal exist (they block paths) but before the player and the monster are
-            // created, so neither ends up in the walkable surface.
+            // Bake after the altar and portal exist: they block paths.
             BuildNavMesh(root.gameObject);
 
+            // Players, the monster and the relics are spawned by the network (NetworkBootstrap) at these markers, so the
+            // scene holds no Player or Enemy of its own: a scene copy would duplicate the spawned one.
             Vector2Int start = grid.Find(DungeonGrid.Start)[0];
             Vector3 startPos = grid.CellToWorld(start.x, start.y, CellSize);
             Quaternion startRot = Quaternion.LookRotation(OpenDirection(grid, start));
-            EchoSandboxBuilder.BuildPlayer(actions, startPos + new Vector3(0f, 1.1f, 0f));
-            GameObject.Find("Player").transform.rotation = startRot;
-
             Vector2Int monster = grid.Find(DungeonGrid.Monster)[0];
             Vector3 monsterPos = grid.CellToWorld(monster.x, monster.y, CellSize);
-            EchoSandboxBuilder.BuildEnemy(enemyMat, monsterPos + Vector3.up);
-
             BuildSpawnPoints(grid, root, startPos, startRot, monsterPos);
+
+            // The level is networked: install the rig (and keep it there on every rebuild).
+            if (NetworkRigInstaller.Ensure(scene) == null)
+            {
+                Debug.LogError("[DungeonBuilder] Could not install the network rig; aborting so a scene without multiplayer is not saved.");
+                return;
+            }
 
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);

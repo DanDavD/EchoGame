@@ -4,6 +4,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "EchoProtocol.Core",
+        "EchoProtocol.Networking",
         "Unity.AI.Navigation",
         "FishNet.Runtime"
     ],

@@ -23,6 +23,11 @@ namespace EchoProtocol.Networking.Core
         [SerializeField] private FishNet.Object.NetworkObject _enemyPrefab;
         [SerializeField] private FishNet.Object.NetworkObject _relicPrefab;
 
+        [Header("Startup")]
+        [Tooltip("What to do as soon as the scene starts. The -echo-host / -echo-join command-line flags override it. " +
+                 "Leave on None to choose from the on-screen panel.")]
+        [SerializeField] private LaunchMode _autoStart = LaunchMode.None;
+
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
         private Transport _steamTransport;
@@ -66,9 +71,56 @@ namespace EchoProtocol.Networking.Core
             if (_networkManager != null && _networkManager.ServerManager != null)
             {
                 _networkManager.ServerManager.OnServerConnectionState += HandleServerConnectionState;
+                _networkManager.ServerManager.OnRemoteConnectionState += HandleRemoteConnectionState;
             }
+            if (_networkManager != null && _networkManager.ClientManager != null)
+            {
+                _networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
+            }
+            var playerSpawner = GetComponent<PlayerSpawner>();
+            if (playerSpawner != null) playerSpawner.OnSpawned += HandlePlayerSpawned;
 
             DontDestroyOnLoad(gameObject);
+        }
+
+        // Plain log lines for connection milestones: they make a multiplayer session debuggable from player logs.
+        private void HandleClientConnectionState(ClientConnectionStateArgs args)
+        {
+            Debug.Log($"[Bootstrap] Client connection: {args.ConnectionState}");
+            if (args.ConnectionState == LocalConnectionState.Started) StartCoroutine(LogWorldSnapshot(5f));
+        }
+
+        // What this peer actually sees a few seconds after connecting: proves replication reached it, from the logs alone.
+        private System.Collections.IEnumerator LogWorldSnapshot(float delaySeconds)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+            int players = FindObjectsByType<PlayerController>(FindObjectsInactive.Exclude).Length;
+            int monsters = FindObjectsByType<EnemyBrain>(FindObjectsInactive.Exclude).Length;
+            int relics = FindObjectsByType<EchoProtocol.Relics.RelicBrain>(FindObjectsInactive.Exclude).Length;
+            Debug.Log($"[Bootstrap] World as seen by this peer: players={players} monsters={monsters} relics={relics}");
+        }
+
+        private void HandleRemoteConnectionState(FishNet.Connection.NetworkConnection connection, RemoteConnectionStateArgs args)
+        {
+            Debug.Log($"[Bootstrap] Remote client {args.ConnectionId}: {args.ConnectionState}");
+        }
+
+        private void HandlePlayerSpawned(FishNet.Object.NetworkObject player)
+        {
+            Debug.Log($"[Bootstrap] Player spawned for client {player.OwnerId} at {player.transform.position}");
+        }
+
+        private void Start()
+        {
+            LaunchMode mode = LaunchOptions.Parse(System.Environment.GetCommandLineArgs(), out string address);
+            if (mode == LaunchMode.None)
+            {
+                mode = _autoStart;
+                address = null;
+            }
+
+            if (mode == LaunchMode.Host) StartLocalHost();
+            else if (mode == LaunchMode.Join) JoinLocalClient(address);
         }
 
         private void OnDestroy()
@@ -76,7 +128,78 @@ namespace EchoProtocol.Networking.Core
             if (_networkManager != null && _networkManager.ServerManager != null)
             {
                 _networkManager.ServerManager.OnServerConnectionState -= HandleServerConnectionState;
+                _networkManager.ServerManager.OnRemoteConnectionState -= HandleRemoteConnectionState;
             }
+            if (_networkManager != null && _networkManager.ClientManager != null)
+            {
+                _networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
+            }
+            var playerSpawner = GetComponent<PlayerSpawner>();
+            if (playerSpawner != null) playerSpawner.OnSpawned -= HandlePlayerSpawned;
+        }
+
+        /// <summary>True while this instance is running the server (host).</summary>
+        public bool IsHosting => _networkManager != null && _networkManager.IsServerStarted;
+
+        /// <summary>True while this instance is connected, or connecting, as a client.</summary>
+        public bool IsClientRunning => _networkManager != null && _networkManager.IsClientStarted;
+
+        /// <summary>True when a server or a client is running.</summary>
+        public bool IsNetworkActive => IsHosting || IsClientRunning;
+
+        /// <summary>Starts a local host (server and client in this process) over the Tugboat transport, no Steam needed.</summary>
+        public bool StartLocalHost()
+        {
+            if (_networkManager == null || IsNetworkActive) return false;
+            if (_localTransport == null)
+            {
+                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot host locally.");
+                return false;
+            }
+
+            _networkManager.TransportManager.Transport = _localTransport;
+            bool serverStarted = _networkManager.ServerManager.StartConnection();
+            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            Debug.Log($"[Bootstrap] Local host started. Server: {serverStarted}, Client: {clientStarted}");
+            return serverStarted && clientStarted;
+        }
+
+        /// <summary>Connects to a local host over Tugboat. <paramref name="address"/> defaults to localhost.</summary>
+        public bool JoinLocalClient(string address = null)
+        {
+            if (_networkManager == null || IsNetworkActive) return false;
+            if (_localTransport == null)
+            {
+                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot join locally.");
+                return false;
+            }
+
+            _networkManager.TransportManager.Transport = _localTransport;
+            if (!string.IsNullOrWhiteSpace(address)) _localTransport.SetClientAddress(address);
+
+            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            Debug.Log($"[Bootstrap] Local join started. Client: {clientStarted}");
+            return clientStarted;
+        }
+
+        /// <summary>Creates a friends-only Steam lobby; the host starts once Steam confirms the lobby.</summary>
+        public void HostSteamLobby()
+        {
+            if (_networkManager == null || IsNetworkActive) return;
+            if (_steamTransport != null) _networkManager.TransportManager.Transport = _steamTransport;
+            _lobbyManager.HostLobby();
+        }
+
+        /// <summary>Stops the server and the client and leaves the Steam lobby, if any.</summary>
+        public void Disconnect()
+        {
+            if (_networkManager == null) return;
+
+            _spawnedEnemyInstance = null;
+            _spawnedRelicInstance = null;
+            if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
+            if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
+            if (_lobbyManager != null) _lobbyManager.LeaveLobby();
         }
 
         private void Update()
@@ -254,44 +377,13 @@ namespace EchoProtocol.Networking.Core
 
             if (!_networkManager.IsServerStarted && !_networkManager.IsClientStarted)
             {
-                if (GUILayout.Button("Host Steam Lobby (Friends Only)"))
-                {
-                    if (_steamTransport != null) _networkManager.TransportManager.Transport = _steamTransport;
-                    _lobbyManager.HostLobby();
-                }
+                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) HostSteamLobby();
 
                 GUILayout.Space(10);
                 GUILayout.Label("-- Offline / LAN Testing --");
 
-                if (GUILayout.Button("Host Local (No Steam)"))
-                {
-                    if (_localTransport == null)
-                    {
-                        Debug.LogError("[Bootstrap] Tugboat transport not found; cannot host locally.");
-                    }
-                    else
-                    {
-                        _networkManager.TransportManager.Transport = _localTransport;
-
-                        bool hostStarted = _networkManager.ServerManager.StartConnection();
-                        bool clientStarted = _networkManager.ClientManager.StartConnection();
-                        Debug.Log($"[Bootstrap] Local host attempted. Server: {hostStarted}, Client: {clientStarted}");
-                    }
-                }
-                if (GUILayout.Button("Join Local Client"))
-                {
-                    if (_localTransport == null)
-                    {
-                        Debug.LogError("[Bootstrap] Tugboat transport not found; cannot join locally.");
-                    }
-                    else
-                    {
-                        _networkManager.TransportManager.Transport = _localTransport;
-
-                        bool clientStarted = _networkManager.ClientManager.StartConnection();
-                        Debug.Log($"[Bootstrap] Local join attempted. Client: {clientStarted}");
-                    }
-                }
+                if (GUILayout.Button("Host Local (No Steam)")) StartLocalHost();
+                if (GUILayout.Button("Join Local Client")) JoinLocalClient();
             }
             else
             {
@@ -305,14 +397,7 @@ namespace EchoProtocol.Networking.Core
 
                 GUILayout.Space(5);
 
-                if (GUILayout.Button("Disconnect"))
-                {
-                    _spawnedEnemyInstance = null;
-                    _spawnedRelicInstance = null;
-                    if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
-                    if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
-                    _lobbyManager.LeaveLobby();
-                }
+                if (GUILayout.Button("Disconnect")) Disconnect();
             }
             
             GUILayout.EndArea();

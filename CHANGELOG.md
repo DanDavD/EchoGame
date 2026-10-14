@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Network rig prefab (`NetworkRig.prefab`, `NetworkRigBuilder.cs`, `NetworkRigInstaller.cs`)**: multiplayer wiring (NetworkManager, Tugboat, PlayerSpawner, Steam lobby support, NetworkBootstrap) is one regenerable prefab that the level builders install. It had been lost from the scenes when the altar commit regenerated them; `Dungeon_Main` carries it again.
+- **`NetworkBootstrap` API and launch flags (`LaunchOptions.cs`)**: `StartLocalHost`, `JoinLocalClient`, `Disconnect`, `HostSteamLobby`; `-echo-host`, `-echo-join [address]` and `-echo-no-steam` command-line flags; connection and player-spawn log lines.
+- **Network tests**: EditMode checks that the rig prefab is complete, that every scene in the build carries the rig (except the deliberately offline `Sandbox_Test`) and that a networked level holds no player of its own; PlayMode hosts a real local server in `Dungeon_Main` and checks the player spawns at a level spawn point, the monster stands on the NavMesh, the server relic exists, the match can be won and a disconnect / re-host cycle works; the offline sandbox keeps its player, relics and monster.
 - **Catacombs level (`Assets/Level/Catacombs.txt`, `DungeonGrid.cs`, `DungeonBuilder.cs`)**: a 21x19-cell dungeon generated from an ASCII map into `Dungeon_Main.unity` (merged wall runs, ceiling, pillars, ragdoll traps, altar, exit portal, baked NavMesh). `DungeonGrid` validates the map (one start/altar, three shrines, sealed border, everything reachable on foot) and is unit-tested. See `docs/LEVEL_DESIGN.md`.
 - **Spawn points (`SpawnPoint.cs`, `SpawnRegistry`)**: levels place player / relic / enemy markers and the match flow reads them instead of hardcoded coordinates.
 - **PlayMode test suite (`Assets/Tests/PlayMode`)**: loads `Dungeon_Main` and verifies spawns, relics, monster on NavMesh, NavMesh paths from the start to the altar, every shrine and the exit, and a full win through the portal.
@@ -94,6 +97,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documentation brought back in sync with the code: README (status, structure, controls, roadmap), architecture (multiplayer is implemented, gameplay modules), enemy AI (catch distance, enrage), ragdoll (owner-only), networking (implementation notes, offline fallback, current limitations) and the living-relics design (real archetypes, class diagram, PR status).
 
 ### Fixed
+- **Multiplayer missing from the scenes**: see the network rig prefab above.
+- **Relic copies in networked scenes (`GameExtractionManager.cs`)**: with a `NetworkManager` present the manager no longer builds local relics (never-spawned `NetworkObject`s that could not be picked up); the server owns them.
+- **Steam manager (`SteamManager.cs`)**: re-creating the manager after it was destroyed on purpose threw "Tried to Initialize the SteamAPI twice"; the guard now applies only while the game is quitting. Steam is optional: without it the lobby manager logs a warning instead of an error.
+- **Offline guard (`OfflineSandboxGuard.cs`)**: it kept reporting the offline state after a networked scene loaded; the flag is now cleared.
 - **Offline guard (`OfflineSandboxGuard.cs`)**: it only ran for the first scene of the game, so a scene loaded later (menu to level, match restart) lost its player and monster. It now also runs on every `sceneLoaded`.
 - **Editor tooling (`EchoSandboxBuilder.cs`)**: removed the `[InitializeOnLoad]` hooks that opened and modified `Sandbox_Test` on every script recompile; the builders are menu-only now.
 - **Player builds (`EchoSandboxBuilder.cs`)**: the editor tooling lived inside the game assembly and referenced `UnityEditor`, so a player build could not compile. It now has its own editor-only assembly (`EchoProtocol.Editor`).

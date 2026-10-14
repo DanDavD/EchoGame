@@ -60,13 +60,13 @@ This is an active prototype built solo under a tight deadline. Progress is track
 2. Open the folder in Unity Hub with the exact editor version above.
 3. Open `Assets/Scenes/Dungeon_Main.unity` (the catacombs level). `Sandbox_Test.unity` is the small test arena.
    - If `Dungeon_Main` does not exist, use the menu **Echo Protocol → Build → Dungeon Scene (Catacombs)**.
-4. Press **Play** and talk into your microphone.
+4. Press **Play**, click **Host Local (No Steam)** in the panel (top-left) and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join Local Client**. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the panel.
 
 **Controls:** `WASD` move · `Mouse` look · `Space` jump · `Shift` sprint · `E` interact / pick up / place relic · `G` drop relic · `Esc` release cursor.
 
 **Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `T` switch relic personality · `Y` force a relic roast. In extraction end screens `R` restarts the match.
 
-**Networking:** the in-game panel offers *Host Steam Lobby*, *Host Local* and *Join Local Client* (Tugboat, for testing with Multiplayer Play Mode). `steam_appid.txt` contains `480` (Spacewar test AppID); replace it with the real AppID before a release.
+**Networking:** the in-game panel offers *Host Local* and *Join Local Client* (Tugboat, works without Steam) and *Host Steam Lobby*. The Steam lobby path is not wired to a Steam transport yet and is unverified (see [networking limitations](docs/NETWORKING.md#5-current-limitations)). All multiplayer wiring is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, installed by the level builders and guarded by tests. `steam_appid.txt` contains `480` (Spacewar test AppID); replace it with the real AppID before a release. `-echo-no-steam` runs the game without touching Steam.
 
 **Calibration:** if the loudness bar in the top-left corner does not react well to your voice, select the Player and either tweak *Silence Db* / *Scream Db* on `MicrophoneLoudness`, or right-click the component → **Calibrate Silence** (stay quiet for 2 seconds).
 

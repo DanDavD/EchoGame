@@ -109,48 +109,28 @@ namespace EchoProtocol.Extraction
             var existing = FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude);
             if (existing != null && existing.Length >= 3) return;
 
-            // Networked prefab instances (NetworkObject) are only valid when a FishNet NetworkManager exists.
-            // Offline sandbox play uses plain primitives to avoid "expected to be initialized" errors.
-            GameObject prefab = null;
-            bool hasNetworkManager = FindAnyObjectByType<FishNet.Managing.NetworkManager>() != null;
-#if UNITY_EDITOR
-            if (hasNetworkManager)
-            {
-                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Relic_Test.prefab");
-            }
-#endif
-            if (hasNetworkManager && prefab == null)
-            {
-                // In a networked player build the primitive fallback below would create NetworkBehaviours that
-                // have no NetworkObject, and every IsSpawned/IsOwner read would throw. Relics come from the server.
-                Debug.LogWarning("[GameExtractionManager] NetworkManager present but no relic prefab is available; skipping local relic spawn.");
-                return;
-            }
+            // With a FishNet NetworkManager in the scene the server owns every relic (NetworkBootstrap spawns them),
+            // so spawning local copies here would create NetworkObjects that are never spawned: picking one up fails.
+            // Only the offline sandbox builds its relics locally, from plain primitives.
+            if (FindAnyObjectByType<FishNet.Managing.NetworkManager>() != null) return;
+
             (Vector3 pos, RelicPersonalityType personality, string name)[] relicData = BuildRelicSpawnData();
 
             for (int i = 0; i < relicData.Length; i++)
             {
                 var data = relicData[i];
-                GameObject relicObj;
-                if (prefab != null)
-                {
-                    relicObj = Instantiate(prefab, data.pos, Quaternion.identity);
-                }
-                else
-                {
-                    relicObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    // Build inactive so Awake/OnEnable never read FishNet properties before they are bound.
-                    relicObj.SetActive(false);
-                    relicObj.transform.position = data.pos;
-                    relicObj.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
-                    relicObj.AddComponent<Rigidbody>();
-                    relicObj.AddComponent<EchoProtocol.Interaction.RelicCarryable>();
-                    relicObj.AddComponent<RelicVoiceSynthesizer>();
-                    relicObj.AddComponent<RelicDialogueUI>();
-                    relicObj.AddComponent<RelicBrain>();
-                    EchoProtocol.Core.OfflineSandboxGuard.BindOffline(relicObj);
-                    relicObj.SetActive(true);
-                }
+                GameObject relicObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                // Build inactive so Awake/OnEnable never read FishNet properties before they are bound.
+                relicObj.SetActive(false);
+                relicObj.transform.position = data.pos;
+                relicObj.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
+                relicObj.AddComponent<Rigidbody>();
+                relicObj.AddComponent<EchoProtocol.Interaction.RelicCarryable>();
+                relicObj.AddComponent<RelicVoiceSynthesizer>();
+                relicObj.AddComponent<RelicDialogueUI>();
+                relicObj.AddComponent<RelicBrain>();
+                EchoProtocol.Core.OfflineSandboxGuard.BindOffline(relicObj);
+                relicObj.SetActive(true);
 
                 relicObj.name = data.name;
                 var brain = relicObj.GetComponent<RelicBrain>();

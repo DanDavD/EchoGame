@@ -50,7 +50,12 @@ namespace EchoProtocol.Core
 
         private static void DisableNetworkingWhenOffline()
         {
-            if (Object.FindAnyObjectByType<NetworkManager>(FindObjectsInactive.Include) != null) return;
+            if (Object.FindAnyObjectByType<NetworkManager>(FindObjectsInactive.Include) != null)
+            {
+                // A networked scene was loaded after an offline one: do not keep reporting the stale offline state.
+                IsOffline = false;
+                return;
+            }
 
             IsOffline = true;
 

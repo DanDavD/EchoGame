@@ -3,12 +3,15 @@
     "rootNamespace": "",
     "references": [
         "EchoProtocol.Core",
+        "EchoProtocol.Networking",
         "Unity.InputSystem",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.AI.Navigation",
         "Unity.AI.Navigation.Editor",
-        "FishNet.Runtime"
+        "FishNet.Runtime",
+        "FishySteamworks",
+        "com.rlabrecque.steamworks.net"
     ],
     "includePlatforms": [
         "Editor"
