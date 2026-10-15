@@ -91,6 +91,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 ### Changed
+- **Networked altar and match flow**: `AltarReceptacle` and `GameExtractionManager` are networked scene objects. The server decides every docking, the symphony, the win/lose result and the restart; clients mirror them through `SyncVar`s. The escape portal reports to the server, and a restart respawns the monster and relics and sends players back to their spawn points (no scene reload, which would end the session). Pure rules live in `AltarRules` and `MatchRules` with EditMode tests.
+- **One relic per shrine, personality replicated**: the server spawns all three relics at the level's shrines and their personality reaches every peer. A docked relic locks on every peer.
 - Unity editor bumped to `6000.6.5f1` (docs updated).
 - `HearingSensor.ComputePerceivedLevel`, `MicrophoneLoudness.DbToLevel01` and `MicrophoneLoudness.ResolveState` extracted as pure static functions (same behaviour, now unit-testable).
 - Replaced deprecated `FindFirstObjectByType` / `FindObjectsByType(..., FindObjectsSortMode)` calls with `FindAnyObjectByType` / `FindObjectsByType(FindObjectsInactive)` (removes the `CS0618` warnings).

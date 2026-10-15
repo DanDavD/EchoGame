@@ -168,6 +168,12 @@ public class PlayerRagdoll : MonoBehaviour
         _cameraPivot.rotation = damped * _startPivotRotation;
     }
 
+    /// <summary>Ends a ragdoll at once, e.g. when the player is sent back to a spawn point. Does nothing when not ragdolling.</summary>
+    public void ForceRecover()
+    {
+        if (IsRagdolling) Recover();
+    }
+
     private void Recover()
     {
         // Velocities can only be written while the body is dynamic, so clear them first.

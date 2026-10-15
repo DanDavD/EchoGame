@@ -282,6 +282,31 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// Server only: sends this player back to <paramref name="position"/>, for a new match. The owner moves itself, so
+    /// the owner's NetworkTransform replicates the new position to everybody else.
+    /// </summary>
+    public void ServerTeleport(Vector3 position, Quaternion rotation)
+    {
+        if (!IsServerStarted) return;
+        TargetTeleport(Owner, position, rotation);
+    }
+
+    [TargetRpc]
+    private void TargetTeleport(FishNet.Connection.NetworkConnection connection, Vector3 position, Quaternion rotation)
+    {
+        var ragdoll = GetComponent<PlayerRagdoll>();
+        if (ragdoll != null) ragdoll.ForceRecover();
+
+        _controller.enabled = false;
+        transform.SetPositionAndRotation(position, rotation);
+        _controller.enabled = true;
+
+        _horizontalVelocity = Vector3.zero;
+        _verticalVelocity = 0f;
+        SetControlEnabled(true);
+    }
+
     private static void SetCursorLocked(bool locked)
     {
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;

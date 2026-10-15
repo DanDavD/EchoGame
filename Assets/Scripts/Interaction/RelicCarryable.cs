@@ -30,8 +30,12 @@ namespace EchoProtocol.Interaction
         /// <summary>True if this relic is currently in a player's hands.</summary>
         public bool IsCarried => _carrier.Value != null || _localCarrierFallback != null;
 
+        /// <summary>Set by the server when the relic is docked in an altar socket. Replicated, so every peer locks it.</summary>
+        private readonly SyncVar<bool> _lockedInAltar = new SyncVar<bool>();
+        private bool _lockedLocal;
+
         /// <summary>True if this relic has been installed into an altar receptacle.</summary>
-        public bool IsLockedInAltar { get; private set; }
+        public bool IsLockedInAltar => _lockedLocal || _lockedInAltar.Value;
 
         /// <summary>The player currently holding this relic, or null.</summary>
         public NetworkObject Carrier => _carrier.Value != null ? _carrier.Value : (_localCarrierFallback != null ? _localCarrierFallback.GetComponent<NetworkObject>() : null);
@@ -60,11 +64,18 @@ namespace EchoProtocol.Interaction
             }
 
             _carrier.OnChange += OnCarrierChanged;
+            _lockedInAltar.OnChange += OnLockChanged;
         }
 
         private void OnDestroy()
         {
             _carrier.OnChange -= OnCarrierChanged;
+            _lockedInAltar.OnChange -= OnLockChanged;
+        }
+
+        private void OnLockChanged(bool prev, bool current, bool asServer)
+        {
+            if (current) ApplyAltarLock();
         }
 
         /// <summary>Raised whenever this relic is picked up by a player.</summary>
@@ -120,7 +131,14 @@ namespace EchoProtocol.Interaction
 
         private void LateUpdate()
         {
-            if (!IsCarried || IsLockedInAltar) return;
+            if (IsLockedInAltar)
+            {
+                // A replicated drop can briefly make the body dynamic again on a client: keep it docked.
+                if (_rb != null && !_rb.isKinematic) ApplyAltarLock();
+                return;
+            }
+
+            if (!IsCarried) return;
 
             if (IsServerStarted && (_carrier.Value == null || !_carrier.Value.IsSpawned))
             {
@@ -326,17 +344,33 @@ namespace EchoProtocol.Interaction
         }
 
         /// <summary>
-        /// Permanently locks this relic onto an altar socket mount.
+        /// Permanently locks this relic onto an altar socket mount. The server calls it when a docking request is
+        /// accepted; without a network the local player's path calls it. The lock replicates to every peer. The relic
+        /// is not reparented: a parent change would not replicate, so the server only sets its position.
         /// </summary>
         public void LockToAltar(Transform socketMount)
         {
-            IsLockedInAltar = true;
+            if (IsSpawned)
+            {
+                if (IsServerStarted) _lockedInAltar.Value = true;
+            }
+            else
+            {
+                _lockedLocal = true;
+            }
+
             _localCarrierFallback = null;
             if (IsServerStarted)
             {
                 _carrier.Value = null;
             }
 
+            transform.SetPositionAndRotation(socketMount.position, socketMount.rotation);
+            ApplyAltarLock();
+        }
+
+        private void ApplyAltarLock()
+        {
             if (_rb != null)
             {
                 _rb.linearVelocity = Vector3.zero;
@@ -344,9 +378,6 @@ namespace EchoProtocol.Interaction
                 _rb.isKinematic = true;
             }
             if (_col != null) _col.enabled = false;
-
-            transform.SetPositionAndRotation(socketMount.position, socketMount.rotation);
-            transform.SetParent(socketMount, true);
         }
     }
 }

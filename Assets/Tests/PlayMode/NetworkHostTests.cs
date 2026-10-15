@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using EchoProtocol.Altar;
 using EchoProtocol.Extraction;
+using EchoProtocol.Interaction;
 using EchoProtocol.Level;
 using EchoProtocol.Networking.Core;
 using EchoProtocol.Relics;
@@ -13,9 +14,10 @@ using UnityEngine.TestTools;
 namespace EchoProtocol.Tests
 {
     /// <summary>
-    /// Hosts a real local server (Tugboat over loopback, no Steam) in the catacombs and checks what the network spawns:
-    /// the local player at a level spawn point, the server-authoritative monster and the relic, and a clean
-    /// disconnect / re-host cycle. This is the guard against losing multiplayer again.
+    /// Hosts a real local server (Tugboat over loopback, no Steam) in the catacombs and checks what the network spawns
+    /// and decides: the local player at a level spawn point, the server-authoritative monster and one relic per shrine,
+    /// the altar docking, the match ending through the exit portal, and the restart. This is the guard against losing
+    /// multiplayer again.
     /// </summary>
     public class NetworkHostTests
     {
@@ -49,6 +51,15 @@ namespace EchoProtocol.Tests
             yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() != null, "the local player to spawn");
         }
 
+        /// <summary>Puts the local player at <paramref name="position"/> so triggers and distances can be tested.</summary>
+        private static void MoveNear(PlayerController player, Vector3 position)
+        {
+            var controller = player.GetComponent<CharacterController>();
+            controller.enabled = false;
+            player.transform.position = position + Vector3.up * 0.5f;
+            controller.enabled = true;
+        }
+
         [UnityTest]
         public IEnumerator Host_SpawnsExactlyOnePlayer_AtALevelSpawnPoint()
         {
@@ -80,17 +91,52 @@ namespace EchoProtocol.Tests
         }
 
         [UnityTest]
-        public IEnumerator Host_SpawnsTheServerRelic_AtTheFirstShrine()
+        public IEnumerator Host_SpawnsOneRelicAtEachShrine_WithItsPersonality()
         {
             yield return HostAndWaitForPlayer();
-            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<RelicBrain>() != null, "the relic to spawn");
+            int shrines = SpawnRegistry.Get(SpawnKind.Relic).Count;
+            yield return NetTestUtil.WaitUntil(() => Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Include).Length == shrines,
+                "a relic at every shrine");
 
-            var relics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Include);
-            Assert.AreEqual(1, relics.Length, "the server spawns one relic (the rest of the set belongs to the networked altar loop)");
-            Assert.IsTrue(relics[0].IsSpawned, "the relic must be a spawned network object, not a local copy");
+            RelicBrain[] relics = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Include);
+            foreach (RelicBrain relic in relics)
+            {
+                Assert.IsTrue(relic.IsSpawned, "relics must be spawned network objects, not local copies");
+            }
 
-            SpawnPoint shrine = SpawnRegistry.First(SpawnKind.Relic);
-            Assert.Less(Vector3.Distance(shrine.transform.position, relics[0].transform.position), 3f, "the relic should start at the first shrine");
+            foreach (SpawnPoint shrine in SpawnRegistry.Get(SpawnKind.Relic))
+            {
+                RelicBrain atShrine = relics.FirstOrDefault(r => Vector3.Distance(r.transform.position, shrine.transform.position) < 3f);
+                Assert.IsNotNull(atShrine, $"no relic at {shrine.name}");
+                Assert.AreEqual(shrine.RelicPersonality, atShrine.Personality, $"the relic at {shrine.name} should have its shrine's personality");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Host_DocksACarriedRelic_AndTheServerLocksIt()
+        {
+            yield return HostAndWaitForPlayer();
+            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<RelicCarryable>() != null, "a relic to spawn");
+
+            var altar = Object.FindAnyObjectByType<AltarReceptacle>();
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+            RelicCarryable relic = Object.FindObjectsByType<RelicCarryable>(FindObjectsInactive.Include)[0];
+
+            MoveNear(player, relic.transform.position);
+            yield return null;
+            relic.Interact(player);
+            yield return NetTestUtil.WaitUntil(() => relic.IsCarried, "the relic to be picked up");
+
+            MoveNear(player, altar.transform.position + new Vector3(0f, 0f, -1.5f));
+            yield return null;
+            Assert.IsTrue(altar.CanInteract(player), "a carried relic should be dockable at the altar");
+
+            altar.Interact(player);
+            yield return NetTestUtil.WaitUntil(() => altar.FilledSocketsCount == 1, "the relic to dock");
+
+            Assert.IsTrue(relic.IsLockedInAltar, "the server locks a docked relic");
+            Assert.IsNull(relic.Carrier, "a docked relic is no longer carried");
+            Assert.IsFalse(altar.IsCompleted, "one relic does not complete the altar");
         }
 
         [UnityTest]
@@ -101,20 +147,47 @@ namespace EchoProtocol.Tests
             var altar = Object.FindAnyObjectByType<AltarReceptacle>();
             var portal = Object.FindAnyObjectByType<EscapePortal>();
             PlayerController player = NetTestUtil.FindLocalPlayer();
-            var controller = player.GetComponent<CharacterController>();
 
             altar.TriggerSymphonyClimax();
             yield return null;
             Assert.IsTrue(portal.IsActive, "completing the altar must unlock the exit");
 
-            controller.enabled = false;
-            player.transform.position = portal.transform.position + Vector3.up * 0.5f;
-            controller.enabled = true;
+            MoveNear(player, portal.transform.position);
             yield return new WaitForFixedUpdate();
             yield return new WaitForFixedUpdate();
             yield return null;
 
             Assert.AreEqual(ExtractionState.Victory, GameExtractionManager.Instance.State);
+        }
+
+        [UnityTest]
+        public IEnumerator Host_RestartAfterVictory_ResetsTheMatchAndRespawnsEveryone()
+        {
+            yield return HostAndWaitForPlayer();
+
+            var altar = Object.FindAnyObjectByType<AltarReceptacle>();
+            var portal = Object.FindAnyObjectByType<EscapePortal>();
+            var match = GameExtractionManager.Instance;
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+
+            altar.TriggerSymphonyClimax();
+            yield return null;
+            MoveNear(player, portal.transform.position);
+            yield return NetTestUtil.WaitUntil(() => match.State == ExtractionState.Victory, "the match to be won");
+
+            match.RestartMatch();
+            yield return NetTestUtil.WaitUntil(() => match.State == ExtractionState.ObjectiveInProgress, "the match to restart");
+
+            Assert.IsFalse(portal.IsActive, "the exit closes for the new match");
+            Assert.IsFalse(altar.IsCompleted, "the altar starts empty again");
+            Assert.AreEqual(0, altar.FilledSocketsCount, "no relic is docked in the new match");
+
+            int shrines = SpawnRegistry.Get(SpawnKind.Relic).Count;
+            yield return NetTestUtil.WaitUntil(() => Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Include).Length == shrines,
+                "the relics to respawn at the shrines");
+            yield return NetTestUtil.WaitUntil(() => SpawnRegistry.Get(SpawnKind.Player)
+                .Any(p => Vector3.Distance(p.transform.position, player.transform.position) < 1f),
+                "the player to be sent back to a spawn point");
         }
 
         [UnityTest]

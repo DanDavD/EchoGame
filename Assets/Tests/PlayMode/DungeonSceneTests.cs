@@ -31,13 +31,17 @@ namespace EchoProtocol.Tests
             yield return NetTestUtil.DestroyRig();
         }
 
+        // FishNet deactivates scene NetworkObjects until a host or client starts, so the altar, the exit and the match
+        // manager are looked up including inactive objects. The networked tests check them once the session is running.
         [UnityTest]
         public IEnumerator Scene_HasEverythingTheMatchNeeds()
         {
-            Assert.IsNotNull(Object.FindAnyObjectByType<AltarReceptacle>(), "altar");
-            Assert.IsNotNull(GameExtractionManager.Instance, "match manager");
-            Assert.AreEqual(1, EscapePortal.AllPortals.Count, "exit portal");
-            Assert.AreEqual(3, Object.FindAnyObjectByType<AltarReceptacle>().RequiredSocketsCount, "altar sockets");
+            var altar = Object.FindAnyObjectByType<AltarReceptacle>(FindObjectsInactive.Include);
+            Assert.IsNotNull(altar, "altar");
+            Assert.IsNotNull(altar.GetComponent<FishNet.Object.NetworkObject>(), "the altar is a networked scene object");
+            Assert.IsNotNull(Object.FindAnyObjectByType<GameExtractionManager>(FindObjectsInactive.Include), "match manager");
+            Assert.AreEqual(1, Object.FindObjectsByType<EscapePortal>(FindObjectsInactive.Include).Length, "exit portal");
+            Assert.AreEqual(3, altar.RequiredSocketsCount, "altar sockets");
             Assert.IsNotNull(NetTestUtil.FindBootstrap(), "the network rig must be part of the scene");
             yield return null;
         }
@@ -75,8 +79,8 @@ namespace EchoProtocol.Tests
             Vector3 start = SpawnRegistry.First(SpawnKind.Player).transform.position;
             var targets = new List<(string label, Vector3 position)>
             {
-                ("altar", Object.FindAnyObjectByType<AltarReceptacle>().transform.position),
-                ("exit portal approach", PortalApproachPoint(Object.FindAnyObjectByType<EscapePortal>())),
+                ("altar", Object.FindAnyObjectByType<AltarReceptacle>(FindObjectsInactive.Include).transform.position),
+                ("exit portal approach", PortalApproachPoint(Object.FindAnyObjectByType<EscapePortal>(FindObjectsInactive.Include))),
                 ("monster spawn", SpawnRegistry.First(SpawnKind.Enemy).transform.position)
             };
             foreach (SpawnPoint shrine in SpawnRegistry.Get(SpawnKind.Relic)) targets.Add((shrine.name, shrine.transform.position));

@@ -176,7 +176,7 @@ namespace EchoProtocol.EditorTools
         /// touched in the editor UI. Objects created by this builder never get it, and FishNet then logs
         /// "expected to be initialized" at runtime. Run the same step the "Reserialize NetworkObjects" tool runs.
         /// </summary>
-        private static void InitializeSceneNetworkObjects()
+        internal static void InitializeSceneNetworkObjects()
         {
             var onValidate = typeof(FishNet.Object.NetworkObject).GetMethod("OnValidate",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);

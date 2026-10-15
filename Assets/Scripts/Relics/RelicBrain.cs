@@ -52,6 +52,9 @@ namespace EchoProtocol.Relics
         private PlayerController _carrierController;
         private IVoiceLevelSource _carrierVoiceSource;
 
+        /// <summary>The personality chosen by the server, so every peer speaks and sings with the same voice.</summary>
+        private readonly SyncVar<int> _syncedPersonality = new SyncVar<int>();
+
         public RelicPersonalityType Personality => _personality;
 
         private void Awake()
@@ -68,9 +71,18 @@ namespace EchoProtocol.Relics
             _idleSleepTimer = Random.Range(10f, _idleSleepInterval);
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+
+            // The value that arrived with the spawn; later changes come through OnPersonalityChanged.
+            if (!IsServerStarted) ApplyPersonality((RelicPersonalityType)_syncedPersonality.Value);
+        }
+
         private void OnEnable()
         {
             NoiseRegistry.Register(this);
+            _syncedPersonality.OnChange += OnPersonalityChanged;
 
             if (_carryable != null)
             {
@@ -82,6 +94,7 @@ namespace EchoProtocol.Relics
         private void OnDisable()
         {
             NoiseRegistry.Unregister(this);
+            _syncedPersonality.OnChange -= OnPersonalityChanged;
 
             if (_carryable != null)
             {
@@ -96,9 +109,21 @@ namespace EchoProtocol.Relics
         }
 
         /// <summary>
-        /// Switches to another personality archetype at runtime.
+        /// Switches to another personality archetype. On a spawned relic only the server can change it; the new
+        /// value replicates to the clients.
         /// </summary>
         public void SetPersonality(RelicPersonalityType newPersonality)
+        {
+            if (IsSpawned && IsServerStarted) _syncedPersonality.Value = (int)newPersonality;
+            ApplyPersonality(newPersonality);
+        }
+
+        private void OnPersonalityChanged(int prev, int next, bool asServer)
+        {
+            if (!IsServerStarted) ApplyPersonality((RelicPersonalityType)next);
+        }
+
+        private void ApplyPersonality(RelicPersonalityType newPersonality)
         {
             _personality = newPersonality;
             if (_synthesizer != null)
@@ -142,6 +167,9 @@ namespace EchoProtocol.Relics
             _carrierController = null;
             _carrierVoiceSource = null;
             _idleSleepTimer = Random.Range(12f, _idleSleepInterval);
+
+            // Docking in the altar is not a drop: the altar's own line plays instead.
+            if (_carryable.IsLockedInAltar) return;
 
             // If not thrown with violent impulse, trigger gentle drop line
             if (!_isAirborneFlying && (_rb == null || _rb.linearVelocity.magnitude < _flyingVelocityThreshold))
@@ -397,8 +425,8 @@ namespace EchoProtocol.Relics
         private void HandleDebugKeys()
         {
 
-            // [T] Key: Cycle personality archetype
-            if (DebugKeys.WasPressed(Key.T))
+            // [T] Key: Cycle personality archetype (on a networked relic only the server may change it)
+            if (DebugKeys.WasPressed(Key.T) && (!IsSpawned || IsServerStarted))
             {
                 int next = ((int)_personality + 1) % 4;
                 SetPersonality((RelicPersonalityType)next);
