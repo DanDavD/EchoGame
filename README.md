@@ -36,7 +36,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 - Physics-driven player ragdoll (enemy catches, traps) that makes noise on impact.
 - Multiplayer: Fish-Net client-host over Steam (FishySteamworks + Steamworks.NET), Steam lobbies, networked players, enemy and echo pulses.
 - Living relics: carryable, talking relics with procedural voices, comedic dialogue and mic/sprint/monster reactions.
-- Altar, symphony choir and escape portal: the full objective → extraction → victory/defeat loop (currently local/offline-first, see [networking limitations](docs/NETWORKING.md#5-current-limitations)).
+- Altar, symphony choir and escape portal: the full objective → extraction → victory/defeat loop, decided by the server in multiplayer and playable offline in the sandbox (see [networking](docs/NETWORKING.md)).
 - One-click sandbox scene builder (editor tool) with baked NavMesh and test arena.
 
 **In progress / planned:** modular dungeon level, ambience audio, PS1-style post-processing, menu and release build, proximity voice chat. See the [roadmap](#roadmap).
@@ -129,7 +129,7 @@ Assets/
 - [x] Catacombs dungeon level generated from a text map, with spawn points and a validated, tested layout
 - [ ] Ambience audio, monster SFX and retro/dither VFX
 - [ ] Main menu, mic calibration UI and verified release build
-- [ ] Network the altar / extraction loop and relic spawning
+- [x] Network the altar / extraction loop and relic spawning (server-decided docking, symphony, win/lose and restart; one relic per shrine)
 - [ ] Proximity voice chat (TBD: Steam Voice or Dissonance)
 
 ## Author

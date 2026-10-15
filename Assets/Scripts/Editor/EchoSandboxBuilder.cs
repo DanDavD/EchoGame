@@ -63,6 +63,8 @@ public static class EchoSandboxBuilder
         SetupAltarAndEscapePortal(arena, propMat);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
+        EchoProtocol.EditorTools.DungeonBuilder.InitializeSceneNetworkObjects();
+        EditorSceneManager.SaveScene(scene);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         AssetDatabase.SaveAssets();
         Debug.Log("[EchoSandboxBuilder] Sandbox_Test scene created. Press Play and make some noise!");
@@ -169,6 +171,9 @@ public static class EchoSandboxBuilder
 
         SetupAltarAndEscapePortal(arena, propMat);
 
+        // Scene ids for the networked altar and match manager need a saved (named) scene: save, assign, save again.
+        EditorSceneManager.SaveScene(scene);
+        EchoProtocol.EditorTools.DungeonBuilder.InitializeSceneNetworkObjects();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
@@ -215,6 +220,8 @@ public static class EchoSandboxBuilder
         altarLight.range = 22f;
         altarLight.intensity = 3.5f;
 
+        // The altar and the match manager are networked scene objects (the server decides them in a multiplayer match).
+        altarObj.AddComponent<FishNet.Object.NetworkObject>();
         var altarReceptacle = altarObj.AddComponent<AltarReceptacle>();
 
         // Wire serialized fields on AltarReceptacle
@@ -315,6 +322,7 @@ public static class EchoSandboxBuilder
         if (existingGm != null) Object.DestroyImmediate(existingGm);
 
         var gmObj = new GameObject("GameManager");
+        gmObj.AddComponent<FishNet.Object.NetworkObject>();
         var extractionMgr = gmObj.AddComponent<GameExtractionManager>();
         var gmSo = new SerializedObject(extractionMgr);
         gmSo.FindProperty("_altar").objectReferenceValue = altarReceptacle;

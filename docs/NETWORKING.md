@@ -80,6 +80,9 @@ sequenceDiagram
 | Echolocation Pulses | Replicated across all peers | Quantized `SyncVar<float>` + `EchoShaderPublisher` | Up to 4 simultaneous spheres rendered in `EchoReveal.shader`. |
 | Relic Pick-up / Drop | Server | `SyncVar<NetworkObject>` carrier + `ServerRpc` | `RelicCarryable`: server validates distance (5 m) and ignores relics already locked in the altar. |
 | Relic Dialogue | Server → observers | `ObserversRpc` | `RelicBrain` picks the line on the server; clients only display and voice it. |
+| Altar Docking | Server | `ServerRequestDock` + replicated filled mask (`SyncVar<int>`) | `AltarReceptacle` checks carrier, socket, distance (6 m) and completion; `AltarRules` holds the rules. |
+| Symphony & Match Flow | Server | Replicated state, countdown and end-screen quote (`SyncVar`) | `GameExtractionManager` (win/lose/restart) and `MatchRules`. A client reaching the portal asks the server with `ServerRequestEscape`. |
+| Restart | Server | `ServerRequestRestart` → `NetworkBootstrap.ServerRespawnWorld` | Relics and monster are despawned and spawned again; players get a `TargetRpc` to move back to a spawn point. |
 | Voice Chat | Proximity Voice Plugin | Separate voice channel | Decided in audio polish phase. |
 
 ---
@@ -94,6 +97,9 @@ sequenceDiagram
 - **Steam shutdown:** Steamworks callbacks are disposed and the lobby is left in `OnDisable`, because touching `SteamManager.Initialized` from `OnDestroy` can re-create the manager while quitting.
 - **SyncVar callbacks on the host:** a host receives `OnChange` twice (`asServer` true and false). Handlers that raise gameplay events (e.g. `RelicCarryable`) process only the server call on a host.
 - **Microphone:** capture is reference counted (see [Architecture](ARCHITECTURE.md)); remote avatars never open or close the local device.
+- **Altar and match flow:** `AltarReceptacle` and `GameExtractionManager` are scene `NetworkObject`s. The server decides every docking, the symphony, the win/lose result and the restart; the clients mirror it through `SyncVar`s. FishNet keeps scene NetworkObjects inactive until a host or client starts, so the altar, the exit and the match manager exist in `Dungeon_Main` only during a session. Without a network (the sandbox) the same code runs locally: each state keeps a local copy and only the server also writes the `SyncVar`s. Pure rules live in `AltarRules` and `MatchRules`, which the EditMode tests cover.
+- **Relics:** one living relic spawns per shrine (the level's relic spawn points), each with its shrine's personality. The personality replicates, so every peer speaks and sings with the same voice. A relic docked in the altar locks on every peer (`SyncVar<bool>`), and its position replicates through `NetworkTransform`.
+- **Restart:** the server calls `NetworkBootstrap.ServerRespawnWorld()`. A scene reload would end the FishNet session, so it is used only offline.
 
 ## 4. Offline Fallback
 
@@ -105,10 +111,9 @@ If a scene has no `NetworkManager` (today only `Sandbox_Test`), `OfflineSandboxG
 
 These are known gaps, tracked for the networking pass of the release branch:
 
-- **Altar, symphony and extraction are local:** `AltarReceptacle`, `AltarSocket`, `EscapePortal` and `GameExtractionManager` are plain `MonoBehaviour`s. A relic docked on one peer is not replicated, and the first player who touches the portal wins on that peer only.
-- **Relic spawning:** when a `NetworkManager` exists only the server spawns relics, and today that is one test relic at the first relic shrine (`NetworkBootstrap`). `GameExtractionManager` no longer creates local copies in networked scenes (they were never-spawned `NetworkObject`s that could not be picked up). Spawning the full set from the shrines, with their personalities replicated, belongs to the networked altar loop.
 - **Steam transport is not wired:** the rig only contains Tugboat. `HostSteamLobby` and the lobby join path assume the active transport is FishySteamworks, which is not on the rig, and switching transports at runtime needs each transport initialised and its events wired. Steam multiplayer is unverified until that is done and tested between two Steam accounts. Local hosting and joining over Tugboat are covered by tests.
-- **Restarting a networked match:** `GameExtractionManager.RestartMatch` reloads the scene with Unity's `SceneManager`, which is not safe for a live FishNet session.
+- **Escape is trusted:** the portal trigger runs on the owner's client, and the server accepts a spawned player's report that they reached the exit while the match is active. There is no position check on the server yet.
+- **Dock range is the only altar check:** the server checks that the player carries the relic, the socket is free, and the player is within 6 m. It does not check line of sight or the interaction cooldown.
 - **Remote carrier sensing:** `RelicBrain` reads the carrier's sprint state from `PlayerController`, which is only simulated on the owner. For a remote carrier the server sees no sprint, so only the mic and monster reactions work.
 - **Remote ragdoll state:** the server cannot tell whether a remote player is ragdolling or immune (see [Enemy AI](ENEMY_AI.md#known-limitations)).
 - **Debug keys** (`H`, `J`, `T`, `Y`, `V`, debug ragdoll) exist only in the Editor and Development builds and act locally.

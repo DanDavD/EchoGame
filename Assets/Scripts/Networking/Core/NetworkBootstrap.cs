@@ -33,7 +33,13 @@ namespace EchoProtocol.Networking.Core
         private Transport _steamTransport;
         private Transport _localTransport;
         private FishNet.Object.NetworkObject _spawnedEnemyInstance;
-        private FishNet.Object.NetworkObject _spawnedRelicInstance;
+        private readonly System.Collections.Generic.List<FishNet.Object.NetworkObject> _spawnedRelics = new System.Collections.Generic.List<FishNet.Object.NetworkObject>();
+
+        // True once the server has spawned the monster and the relics for the current match.
+        private bool _worldSpawned;
+
+        // The match manager tells the rig when a networked match restarts.
+        private EchoProtocol.Extraction.GameExtractionManager _matchFlow;
 
 #if UNITY_EDITOR
         private void OnValidate()
@@ -80,6 +86,9 @@ namespace EchoProtocol.Networking.Core
             var playerSpawner = GetComponent<PlayerSpawner>();
             if (playerSpawner != null) playerSpawner.OnSpawned += HandlePlayerSpawned;
 
+            _matchFlow = FindAnyObjectByType<EchoProtocol.Extraction.GameExtractionManager>();
+            if (_matchFlow != null) _matchFlow.ServerRestarting += ServerRespawnWorld;
+
             DontDestroyOnLoad(gameObject);
         }
 
@@ -125,6 +134,8 @@ namespace EchoProtocol.Networking.Core
 
         private void OnDestroy()
         {
+            if (_matchFlow != null) _matchFlow.ServerRestarting -= ServerRespawnWorld;
+
             if (_networkManager != null && _networkManager.ServerManager != null)
             {
                 _networkManager.ServerManager.OnServerConnectionState -= HandleServerConnectionState;
@@ -195,8 +206,7 @@ namespace EchoProtocol.Networking.Core
         {
             if (_networkManager == null) return;
 
-            _spawnedEnemyInstance = null;
-            _spawnedRelicInstance = null;
+            ForgetWorld();
             if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
             if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
             if (_lobbyManager != null) _lobbyManager.LeaveLobby();
@@ -204,10 +214,9 @@ namespace EchoProtocol.Networking.Core
 
         private void Update()
         {
-            if (_networkManager != null && _networkManager.IsServerStarted)
+            if (_networkManager != null && _networkManager.IsServerStarted && !_worldSpawned)
             {
-                if (_spawnedEnemyInstance == null) SpawnNetworkedEnemy();
-                if (_spawnedRelicInstance == null) SpawnNetworkedRelic();
+                SpawnWorld();
             }
         }
 
@@ -216,13 +225,54 @@ namespace EchoProtocol.Networking.Core
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 ApplyLevelPlayerSpawns();
-                SpawnNetworkedEnemy();
-                SpawnNetworkedRelic();
+                SpawnWorld();
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
-                _spawnedEnemyInstance = null;
-                _spawnedRelicInstance = null;
+                ForgetWorld();
+            }
+        }
+
+        /// <summary>Forgets the spawned monster and relics, e.g. when networking stops. Their objects are removed by FishNet.</summary>
+        private void ForgetWorld()
+        {
+            _spawnedEnemyInstance = null;
+            _spawnedRelics.Clear();
+            _worldSpawned = false;
+        }
+
+        /// <summary>The monster and one relic per shrine, spawned by the server at the level's markers.</summary>
+        private void SpawnWorld()
+        {
+            SpawnNetworkedEnemy();
+            SpawnNetworkedRelics();
+            _worldSpawned = true;
+        }
+
+        /// <summary>
+        /// Server only: puts the world back for a new match. The monster and the relics are despawned and spawned again
+        /// at their markers on the next frame, and every player is sent back to a spawn point.
+        /// </summary>
+        public void ServerRespawnWorld()
+        {
+            if (!IsHosting) return;
+
+            if (_spawnedEnemyInstance != null) _networkManager.ServerManager.Despawn(_spawnedEnemyInstance);
+            foreach (FishNet.Object.NetworkObject relic in _spawnedRelics)
+            {
+                if (relic != null) _networkManager.ServerManager.Despawn(relic);
+            }
+            ForgetWorld();
+
+            var spawns = SpawnRegistry.Get(SpawnKind.Player);
+            var players = PlayerController.ActivePlayers;
+            for (int i = 0; i < players.Count; i++)
+            {
+                var player = players[i];
+                if (player == null || !player.IsSpawned || spawns.Count == 0) continue;
+
+                SpawnPoint point = spawns[i % spawns.Count];
+                player.ServerTeleport(point.transform.position, point.transform.rotation);
             }
         }
 
@@ -245,23 +295,43 @@ namespace EchoProtocol.Networking.Core
             Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Enemy_Blind successfully spawned and synchronized!");
         }
 
-        private void SpawnNetworkedRelic()
+        /// <summary>One living relic per shrine (the level's relic spawn points), each with its shrine's personality.</summary>
+        private void SpawnNetworkedRelics()
         {
             if (_networkManager == null || !_networkManager.IsServerStarted) return;
-            if (_spawnedRelicInstance != null) return;
 
 #if UNITY_EDITOR
             EnsurePrefabReferences();
 #endif
             if (_relicPrefab == null)
             {
-                Debug.LogWarning("[NetworkBootstrap] Relic prefab is null! Cannot spawn relic.");
+                Debug.LogWarning("[NetworkBootstrap] Relic prefab is null! Cannot spawn relics.");
                 return;
             }
 
-            _spawnedRelicInstance = Instantiate(_relicPrefab, LevelPosition(SpawnKind.Relic, new Vector3(0f, 0.5f, 2.5f)), Quaternion.identity);
-            _networkManager.ServerManager.Spawn(_spawnedRelicInstance);
-            Debug.Log("<color=green>[NetworkBootstrap]</color> Networked Relic successfully spawned and synchronized!");
+            var shrines = SpawnRegistry.Get(SpawnKind.Relic);
+            if (shrines.Count == 0)
+            {
+                SpawnRelicAt(new Vector3(0f, 0.5f, 2.5f), EchoProtocol.Relics.RelicPersonalityType.SarcasticCritic);
+                return;
+            }
+
+            foreach (SpawnPoint shrine in shrines)
+            {
+                SpawnRelicAt(shrine.transform.position, shrine.RelicPersonality);
+            }
+            Debug.Log($"<color=green>[NetworkBootstrap]</color> {_spawnedRelics.Count} networked relics spawned and synchronized.");
+        }
+
+        private void SpawnRelicAt(Vector3 position, EchoProtocol.Relics.RelicPersonalityType personality)
+        {
+            FishNet.Object.NetworkObject relic = Instantiate(_relicPrefab, position, Quaternion.identity);
+            _networkManager.ServerManager.Spawn(relic);
+            _spawnedRelics.Add(relic);
+
+            // After the spawn, so the personality replicates to the clients.
+            var brain = relic.GetComponent<EchoProtocol.Relics.RelicBrain>();
+            if (brain != null) brain.SetPersonality(personality);
         }
 
         private void EnsureSpawnablePrefabs()

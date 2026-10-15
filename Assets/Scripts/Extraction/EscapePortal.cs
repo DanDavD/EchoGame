@@ -157,13 +157,13 @@ namespace EchoProtocol.Extraction
             var player = other.GetComponent<PlayerController>();
             if (player == null) player = other.GetComponentInParent<PlayerController>();
 
-            if (player != null)
+            // Each peer reports only its own player; the match manager decides the result on the server.
+            if (player == null || (player.IsSpawned && !player.IsOwner)) return;
+
+            Debug.Log($"<color=green><b>[EscapePortal] Player '{player.name}' reached extraction!</b></color>");
+            if (GameExtractionManager.Instance != null)
             {
-                Debug.Log($"<color=green><b>[EscapePortal] Player '{player.name}' reached extraction!</b></color>");
-                if (GameExtractionManager.Instance != null)
-                {
-                    GameExtractionManager.Instance.OnPlayerEscaped(player);
-                }
+                GameExtractionManager.Instance.OnPlayerEscaped(player);
             }
         }
     }
