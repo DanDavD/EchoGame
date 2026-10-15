@@ -26,10 +26,20 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     [SerializeField, Range(64, 2048)] private int _sampleWindow = 512;
 
     [Header("Calibration (dB, 0 dB = full scale)")]
-    [Tooltip("Level at or below this counts as silence (your room noise floor).")]
-    [SerializeField] private float _silenceDb = -35f;
+    [Tooltip("Level at or below this counts as silence: put it a few dB above your room's noise floor " +
+             "(a quiet headset mic idles around -60 dB, so -55 leaves normal speech at -45..-35 dB well above it).")]
+    [SerializeField] private float _silenceDb = -55f;
     [Tooltip("Level at or above this counts as a full scream (Level01 = 1).")]
     [SerializeField] private float _screamDb = -12f;
+
+    [Header("Auto calibration (recommended)")]
+    [Tooltip("Learns this microphone's noise floor and this player's normal speech level, so the game feels the same on any " +
+             "headset, laptop or room. When off, the two fixed dB values above are used.")]
+    [SerializeField] private bool _autoCalibrate = true;
+    [Tooltip("Loudness (0..1) that normal speech maps to. With the default echo curve, 0.35 lights about 7 m.")]
+    [SerializeField, Range(0.1f, 0.7f)] private float _speechLevel = 0.35f;
+    [Tooltip("dB above normal speech that count as a full scream (lights the whole cavern).")]
+    [SerializeField, Range(10f, 40f)] private float _screamHeadroomDb = 26f;
 
     [Header("Smoothing")]
     [Tooltip("How fast Level01 rises when you get louder (higher = snappier).")]
@@ -53,6 +63,12 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     public VoiceLoudness State { get; private set; } = VoiceLoudness.Silent;
     /// <summary>Instantaneous (unsmoothed) loudness in dB. Useful for calibration.</summary>
     public float CurrentDb { get; private set; } = -80f;
+    /// <summary>The noise floor learned from this microphone (dB). Only meaningful with auto calibration on.</summary>
+    public float NoiseFloorDb => _calibrator.FloorDb;
+    /// <summary>The normal speech level learned from this player (dB). Only meaningful with auto calibration on.</summary>
+    public float SpeechDb => _calibrator.SpeechDb;
+    /// <summary>True when the microphone is calibrated automatically.</summary>
+    public bool IsAutoCalibrating => _autoCalibrate;
     /// <summary>True once the microphone is actually recording.</summary>
     public bool IsCapturing => _clip != null;
 
@@ -63,6 +79,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private string _device;       // null = default device
     private float[] _buffer;
     private bool _calibrating;
+    private MicrophoneCalibrator _calibrator = new MicrophoneCalibrator();
     private float _debugBurstTimer;
     private float _lastMicTarget;
 
@@ -118,6 +135,9 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
         capture.Users++;
         _clip = capture.Clip;
+
+        // A (re)started device may have a different gain: learn it again.
+        _calibrator = new MicrophoneCalibrator();
     }
 
     private void StopCapture()
@@ -177,7 +197,16 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         float rms = Mathf.Sqrt(sum / _buffer.Length);
 
         CurrentDb = rms > 1e-6f ? 20f * Mathf.Log10(rms) : -80f;
-        _lastMicTarget = DbToLevel01(CurrentDb, _silenceDb, _screamDb);
+        if (_autoCalibrate)
+        {
+            _calibrator.Update(CurrentDb, Time.unscaledDeltaTime);
+            _lastMicTarget = _calibrator.ToLevel01(CurrentDb, _speechLevel, _screamHeadroomDb);
+            LogCalibrationWhenItChanges();
+        }
+        else
+        {
+            _lastMicTarget = DbToLevel01(CurrentDb, _silenceDb, _screamDb);
+        }
         return _lastMicTarget;
     }
 
@@ -214,6 +243,20 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         }
     }
 
+    private float _loggedFloorDb = float.NaN;
+    private float _loggedSpeechDb;
+
+    // One line whenever the learned values move noticeably: enough to see from a player log what a microphone was taught.
+    private void LogCalibrationWhenItChanges()
+    {
+        bool first = float.IsNaN(_loggedFloorDb);
+        if (!first && Mathf.Abs(_calibrator.FloorDb - _loggedFloorDb) < 4f && Mathf.Abs(_calibrator.SpeechDb - _loggedSpeechDb) < 4f) return;
+
+        _loggedFloorDb = _calibrator.FloorDb;
+        _loggedSpeechDb = _calibrator.SpeechDb;
+        Debug.Log($"[MicrophoneLoudness] Calibration: noise floor {_loggedFloorDb:F1} dB, normal speech {_loggedSpeechDb:F1} dB");
+    }
+
     private void UpdateState()
     {
         VoiceLoudness s = ResolveState(State, Level01, _whisperThreshold, _talkThreshold, _screamThreshold, _hysteresis);
@@ -243,7 +286,13 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
             count++;
             yield return null;
         }
-        if (count > 0)
+        if (count > 0 && _autoCalibrate)
+        {
+            // Start the automatic calibration again from the measured room noise.
+            _calibrator.Seed(sum / count);
+            Debug.Log($"[MicrophoneLoudness] Noise floor re-measured: {_calibrator.FloorDb:F1} dB");
+        }
+        else if (count > 0)
         {
             _silenceDb = Mathf.Min(sum / count + 6f, _screamDb - 10f); // +6 dB margin above the room noise
             Debug.Log($"[MicrophoneLoudness] New silence floor: {_silenceDb:F1} dB");
@@ -262,6 +311,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         GUI.color = Color.Lerp(Color.green, Color.red, Level01);
         GUI.DrawTexture(new Rect(r.x, r.y, w * Level01, h), Texture2D.whiteTexture);
         GUI.color = Color.white;
-        GUI.Label(new Rect(r.x, r.y + h, w + 100f, 22f), $"{State}  |  {CurrentDb:F1} dB  |  {Level01:F2}");
+        string learned = _autoCalibrate ? $"  |  floor {_calibrator.FloorDb:F0}  speech {_calibrator.SpeechDb:F0}" : "";
+        GUI.Label(new Rect(r.x, r.y + h, w + 220f, 22f), $"{State}  |  {CurrentDb:F1} dB  |  {Level01:F2}{learned}");
     }
 }

@@ -133,6 +133,8 @@ public class PlayerController : NetworkBehaviour
             {
                 cam.gameObject.SetActive(true);
                 cam.enabled = true;
+                EchoProtocol.Visuals.CameraPolish.Apply(cam);
+                EchoProtocol.Visuals.DustMotes.Attach(cam);
                 AudioListener listener = cam.GetComponent<AudioListener>();
                 if (listener == null) listener = cam.gameObject.AddComponent<AudioListener>();
                 listener.enabled = true;
@@ -280,6 +282,24 @@ public class PlayerController : NetworkBehaviour
         {
             ragdoll.TryRagdoll(launchVelocity);
         }
+    }
+
+    /// <summary>
+    /// Puts the local player at <paramref name="position"/> looking along <paramref name="yawDegrees"/> and
+    /// <paramref name="pitchDegrees"/>, with no leftover momentum. Used by the photo mode; the owner's NetworkTransform
+    /// replicates the new position to everybody else.
+    /// </summary>
+    public void SetView(Vector3 position, float yawDegrees, float pitchDegrees)
+    {
+        if (_controller != null) _controller.enabled = false;
+        transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yawDegrees, 0f));
+        if (_controller != null) _controller.enabled = true;
+
+        _horizontalVelocity = Vector3.zero;
+        _verticalVelocity = 0f;
+        _smoothedLook = Vector2.zero;
+        _pitch = Mathf.Clamp(pitchDegrees, -_pitchLimit, _pitchLimit);
+        if (_cameraPivot != null) _cameraPivot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
     }
 
     /// <summary>

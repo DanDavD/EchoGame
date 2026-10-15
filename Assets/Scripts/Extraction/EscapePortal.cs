@@ -40,6 +40,21 @@ namespace EchoProtocol.Extraction
             AllPortals.Remove(this);
         }
 
+        // The gateway is drawn with the EchoReveal shader's portal pattern: dormant stone that fills with swirling
+        // energy once the portal opens. The pattern is selected here, so a regenerated scene needs no material setup.
+        private const float PortalPattern = 4f;
+
+        private void SetPortalEnergy(float energy)
+        {
+            if (_portalVfxRenderer == null) return;
+
+            Material material = _portalVfxRenderer.material;
+            if (material == null || !material.HasProperty("_Pattern")) return;
+
+            material.SetFloat("_Pattern", PortalPattern);
+            material.SetFloat("_PortalActive", energy);
+        }
+
         private void Awake()
         {
             if (_portalTrigger == null) _portalTrigger = GetComponent<Collider>();
@@ -103,7 +118,7 @@ namespace EchoProtocol.Extraction
 
             if (_portalVfxRenderer != null && _portalVfxRenderer.material != null)
             {
-                _portalVfxRenderer.material.color = _activeColor;
+                SetPortalEnergy(1f);
             }
 
             if (_portalParticles != null && !_portalParticles.isPlaying)
@@ -136,7 +151,7 @@ namespace EchoProtocol.Extraction
 
             if (_portalVfxRenderer != null && _portalVfxRenderer.material != null)
             {
-                _portalVfxRenderer.material.color = _inactiveColor;
+                SetPortalEnergy(0f);
             }
 
             if (_portalParticles != null && _portalParticles.isPlaying)

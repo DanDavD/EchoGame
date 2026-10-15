@@ -32,6 +32,10 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
         new Keyframe(1f, 1f));
     [Tooltip("Below this Level01 nothing is revealed (ignores breathing / background noise).")]
     [SerializeField, Range(0f, 0.5f)] private float _noiseGate = 0.08f;
+    [Tooltip("How easy the echo is to trigger. The voice level is multiplied by this before it is mapped to a radius, so " +
+             "every radius (whisper, talk, scream) needs the same fraction less noise: 1 = the original feel, 1.3 = about " +
+             "23% less noise for any radius. Only the echo changes; the monster still hears the real loudness.")]
+    [SerializeField, Range(0.5f, 3f)] private float _voiceSensitivity = 1.3f;
 
     [Header("Look & feel")]
     [Tooltip("Seconds for the light to grow (small = snappy).")]
@@ -80,6 +84,27 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     private float _currentRadius;
     private float _radiusVelocity;
     private float _forcedRadius = -1f;
+
+    /// <summary>How easy the echo is to trigger (see the Voice Sensitivity tooltip). Meant for a settings menu.</summary>
+    public float VoiceSensitivity
+    {
+        get => _voiceSensitivity;
+        set => _voiceSensitivity = Mathf.Clamp(value, 0.5f, 3f);
+    }
+
+    /// <summary>
+    /// The radius (m) the echo aims for at a given voice <paramref name="level"/> (0..1).
+    /// The noise gate looks at the real level, so background noise is not amplified. Above the gate the level is multiplied by
+    /// <paramref name="sensitivity"/> before the curve: the same radius is reached with 1 / sensitivity of the loudness, at every
+    /// point of the curve (a 1.3 sensitivity needs about 23% less noise for a whisper, a normal voice and a scream alike).
+    /// </summary>
+    public static float TargetRadius(float level, float sensitivity, float noiseGate, float maxRadius, AnimationCurve curve)
+    {
+        if (level < noiseGate) return 0f;
+
+        float shaped = Mathf.Clamp01(level * Mathf.Max(sensitivity, 0f));
+        return maxRadius * curve.Evaluate(shaped);
+    }
 
     /// <summary>
     /// Makes the local sphere aim for <paramref name="radius"/> metres whatever the microphone says. Used by the photo mode
@@ -162,7 +187,7 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
         float level = _source.Level01;
         float targetRadius = _forcedRadius >= 0f
             ? _forcedRadius
-            : (level < _noiseGate ? 0f : _maxRadius * _radiusCurve.Evaluate(level));
+            : TargetRadius(level, _voiceSensitivity, _noiseGate, _maxRadius, _radiusCurve);
 
         float smoothTime = targetRadius > _currentRadius ? _growSmoothTime : _shrinkSmoothTime;
         _currentRadius = Mathf.SmoothDamp(_currentRadius, targetRadius, ref _radiusVelocity, smoothTime);
