@@ -253,7 +253,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     private void OnGUI()
     {
-        if (!_showDebugBar) return;
+        if (!_showDebugBar || !DebugOverlay.Visible) return;
 
         const float w = 240f, h = 18f;
         var r = new Rect(10f, 10f, w, h);

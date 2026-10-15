@@ -70,6 +70,8 @@ public class EchoShaderPublisher : MonoBehaviour
 
     private void Update()
     {
+        // [F3] Show / hide the debug readouts
+        if (DebugKeys.WasPressed(Key.F3)) DebugOverlay.Toggle();
 
         // [J] Toggle full scene illumination
         if (DebugKeys.WasPressed(Key.J))
@@ -167,6 +169,7 @@ public class EchoShaderPublisher : MonoBehaviour
 
     private void OnGUI()
     {
+        if (!DebugOverlay.Visible) return;
         if (!_fullIllumination && !EnemyBrain.IsFrozen) return;
 
         GUILayout.BeginArea(new Rect(Screen.width - 230, 10, 220, 65), GUI.skin.box);

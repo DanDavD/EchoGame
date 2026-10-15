@@ -71,11 +71,24 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     /// <summary>World-space centre of the sphere.</summary>
     public Vector3 Origin => transform.position + _originOffset;
     /// <summary>Soft edge width (m) for the current radius.</summary>
-    public float CurrentFalloff => Mathf.Max(_minFalloff, _currentRadius * _falloffRatio);
+    public float CurrentFalloff => Mathf.Max(_minFalloff, _currentRadius * _falloffRatio * FalloffVisualScale);
+
+    // Tighter than the serialized ratio: a wide, soft frontier washes the whole lit area in the edge colour.
+    private const float FalloffVisualScale = 0.7f;
 
     private IVoiceLevelSource _source;
     private float _currentRadius;
     private float _radiusVelocity;
+    private float _forcedRadius = -1f;
+
+    /// <summary>
+    /// Makes the local sphere aim for <paramref name="radius"/> metres whatever the microphone says. Used by the photo mode
+    /// and demos; pass a negative value to hand control back to the voice.
+    /// </summary>
+    public void ForceRadius(float radius)
+    {
+        _forcedRadius = radius;
+    }
 
     /// <summary>True when this instance drives its own radius from a local microphone.</summary>
     private bool IsLocalSource => !IsSpawned || IsOwner;
@@ -147,7 +160,9 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
         if (_source == null) return;
 
         float level = _source.Level01;
-        float targetRadius = level < _noiseGate ? 0f : _maxRadius * _radiusCurve.Evaluate(level);
+        float targetRadius = _forcedRadius >= 0f
+            ? _forcedRadius
+            : (level < _noiseGate ? 0f : _maxRadius * _radiusCurve.Evaluate(level));
 
         float smoothTime = targetRadius > _currentRadius ? _growSmoothTime : _shrinkSmoothTime;
         _currentRadius = Mathf.SmoothDamp(_currentRadius, targetRadius, ref _radiusVelocity, smoothTime);

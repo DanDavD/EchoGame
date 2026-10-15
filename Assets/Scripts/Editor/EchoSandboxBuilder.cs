@@ -492,6 +492,9 @@ public static class EchoSandboxBuilder
 
         if (isNew) AssetDatabase.CreateAsset(mat, path);
         else EditorUtility.SetDirty(mat);
+
+        // The tint above is the old placeholder; the game's real look is defined in one place.
+        EchoProtocol.EditorTools.EchoMaterials.ApplyTo(mat);
         return mat;
     }
 
