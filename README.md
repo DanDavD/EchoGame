@@ -77,7 +77,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 **Controls:** `WASD` move · `Mouse` look · `Space` jump · `Shift` sprint · `E` interact / pick up / place relic · `G` drop relic · `Esc` release cursor.
 
-**Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `T` switch relic personality · `Y` force a relic roast. In extraction end screens `R` restarts the match.
+**Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `M` mute / unmute relic chatter · `T` switch relic personality · `Y` force a relic roast · `F3` show / hide the debug readouts. In extraction end screens `R` restarts the match.
 
 **Networking:** the in-game panel offers *Host Local* and *Join Local Client* (Tugboat, works without Steam) and *Host Steam Lobby*. The Steam lobby path is not wired to a Steam transport yet and is unverified (see [networking limitations](docs/NETWORKING.md#5-current-limitations)). All multiplayer wiring is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, installed by the level builders and guarded by tests. `steam_appid.txt` contains `480` (Spacewar test AppID); replace it with the real AppID before a release. `-echo-no-steam` runs the game without touching Steam.
 

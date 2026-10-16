@@ -17,6 +17,6 @@ public static class DebugOverlay
     /// <summary>Flips visibility. Does nothing in a release build.</summary>
     public static void Toggle()
     {
-        if (DebugKeys.Enabled) Visible = !Visible;
+        Visible = DebugKeys.Enabled && !Visible;
     }
 }

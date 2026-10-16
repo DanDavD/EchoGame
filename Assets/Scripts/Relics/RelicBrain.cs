@@ -61,7 +61,7 @@ namespace EchoProtocol.Relics
             Debug.Log($"<color=yellow>[RelicBrain]</color> Relics muted: {Muted}");
             if (!Muted) return;
 
-            foreach (RelicDialogueUI ui in FindObjectsByType<RelicDialogueUI>(FindObjectsSortMode.None)) ui.ClearDialogue();
+            foreach (RelicDialogueUI ui in FindObjectsByType<RelicDialogueUI>(FindObjectsInactive.Exclude)) ui.ClearDialogue();
         }
 
         // Cached carrier components
