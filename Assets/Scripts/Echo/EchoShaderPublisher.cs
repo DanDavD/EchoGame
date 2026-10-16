@@ -10,6 +10,7 @@ using UnityEngine.InputSystem;
 /// Also provides debug test controls:
 ///   [H] Toggle monster freeze (EnemyBrain)
 ///   [J] Toggle full scene illumination
+///   [M] Toggle relic chatter (mute / unmute)
 /// The publisher GameObject is created automatically at startup, so no scene setup is needed.
 /// </summary>
 public class EchoShaderPublisher : MonoBehaviour
@@ -70,6 +71,8 @@ public class EchoShaderPublisher : MonoBehaviour
 
     private void Update()
     {
+        // [F3] Show / hide the debug readouts
+        if (DebugKeys.WasPressed(Key.F3)) DebugOverlay.Toggle();
 
         // [J] Toggle full scene illumination
         if (DebugKeys.WasPressed(Key.J))
@@ -81,6 +84,12 @@ public class EchoShaderPublisher : MonoBehaviour
         if (DebugKeys.WasPressed(Key.H))
         {
             EnemyBrain.ToggleFreeze();
+        }
+
+        // [M] Toggle relic chatter
+        if (DebugKeys.WasPressed(Key.M))
+        {
+            EchoProtocol.Relics.RelicBrain.ToggleMuted();
         }
     }
 
@@ -167,9 +176,11 @@ public class EchoShaderPublisher : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!_fullIllumination && !EnemyBrain.IsFrozen) return;
+        if (!DebugOverlay.Visible) return;
+        bool relicsMuted = EchoProtocol.Relics.RelicBrain.Muted;
+        if (!_fullIllumination && !EnemyBrain.IsFrozen && !relicsMuted) return;
 
-        GUILayout.BeginArea(new Rect(Screen.width - 230, 10, 220, 65), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(Screen.width - 230, 10, 220, 85), GUI.skin.box);
         if (_fullIllumination)
         {
             GUI.color = Color.yellow;
@@ -179,6 +190,11 @@ public class EchoShaderPublisher : MonoBehaviour
         {
             GUI.color = Color.cyan;
             GUILayout.Label("❄️ [H] Monster: FROZEN");
+        }
+        if (relicsMuted)
+        {
+            GUI.color = Color.green;
+            GUILayout.Label("[M] Relics: MUTED");
         }
         GUI.color = Color.white;
         GUILayout.EndArea();

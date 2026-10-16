@@ -183,6 +183,10 @@ namespace EchoProtocol.Relics
             // 2. Neon border outline
             DrawBorder(cardRect, accentColor, 2f);
 
+            // The labels carry their own colours. GUI.color still holds the dark panel tint here and would multiply the
+            // text into near-black, which made the subtitles unreadable.
+            GUI.color = Color.white;
+
             // 3. Header title bar
             Rect headerRect = new Rect(cardX + 18f, cardY + 12f, cardW - 36f, 22f);
             GUIStyle headerStyle = new GUIStyle(GUI.skin.label)

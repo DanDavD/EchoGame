@@ -29,9 +29,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _EmissionInDark: 0
+    - _Pattern: 2
+    - _PortalActive: 0
+    - _PulseSpeed: 0
     - _TexScale: 1
     m_Colors:
-    - _EdgeColor: {r: 0.3, g: 1.3499999, b: 1.5, a: 1.5}
-    - _Tint: {r: 0.45, g: 0.65, b: 0.55, a: 1}
+    - _EdgeColor: {r: 0.3, g: 1.35, b: 1.5, a: 1}
+    - _Emission: {r: 0, g: 0, b: 0, a: 0}
+    - _Tint: {r: 0.66, g: 0.62, b: 0.58, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

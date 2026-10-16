@@ -183,6 +183,9 @@ public class EnemyBrain : NetworkBehaviour
         _agent = GetComponent<NavMeshAgent>();
         _sensor = GetComponent<HearingSensor>();
         _path = new NavMeshPath();
+
+        // The body is cosmetic and identical on every peer, so any monster gets it, whatever prefab or scene made it.
+        if (GetComponent<MonsterVisual>() == null) gameObject.AddComponent<MonsterVisual>();
     }
 
     public override void OnStartClient()
@@ -500,7 +503,7 @@ public class EnemyBrain : NetworkBehaviour
     private void OnGUI()
     {
         if (IsSpawned && !base.IsServerStarted) return;
-        if (!_showDebugLabel) return;
+        if (!_showDebugLabel || !DebugOverlay.Visible) return;
         GUI.color = State == EnemyState.Hunt ? Color.red : (State == EnemyState.Investigate ? Color.yellow : Color.white);
         string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}";
         GUI.Label(new Rect(10f, 54f, 500f, 22f),

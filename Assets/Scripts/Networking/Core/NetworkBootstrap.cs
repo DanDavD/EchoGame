@@ -428,6 +428,9 @@ namespace EchoProtocol.Networking.Core
         {
             if (_networkManager == null) return;
 
+            // Before connecting this panel is the way in; once connected it is just a debug readout.
+            if (IsNetworkActive && !DebugOverlay.Visible) return;
+
             GUILayout.BeginArea(new Rect(10, 10, 300, 400));
             
             GUIStyle headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };

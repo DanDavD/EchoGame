@@ -24,6 +24,18 @@ produce chaotic, shareable moments (accidental betrayal, panic, ragdoll falls) i
 | **Talk** | A medium sphere (~12 m) lights up. Monsters start to investigate. |
 | **Scream** | The whole cavern is revealed, *and* so is your position. Monsters hunt you. |
 
+## Screenshots
+
+The same corridor before and after the procedural look (captured with the built-in photo mode, `-echo-photo`):
+
+| Before: placeholder checkerboard | After: procedural bricks, slabs, dust and post-processing |
+|---|---|
+| ![Before](docs/media/look-before-checkerboard.png) | ![After](docs/media/look-after-corridor.png) |
+
+| The blind monster | The escape portal, open |
+|---|---|
+| ![Monster](docs/media/monster-closeup.png) | ![Portal](docs/media/portal-open.png) |
+
 ## Current Status
 
 This is an active prototype built solo under a tight deadline. Progress is tracked in the [roadmap](#roadmap) and the [changelog](CHANGELOG.md).
@@ -38,6 +50,7 @@ This is an active prototype built solo under a tight deadline. Progress is track
 - Living relics: carryable, talking relics with procedural voices, comedic dialogue and mic/sprint/monster reactions.
 - Altar, symphony choir and escape portal: the full objective → extraction → victory/defeat loop, decided by the server in multiplayer and playable offline in the sandbox (see [networking](docs/NETWORKING.md)).
 - One-click sandbox scene builder (editor tool) with baked NavMesh and test arena.
+- Procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit from the sound that reveals them, with post-processing (bloom, vignette, grain), drifting dust and a procedurally animated monster. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 
 **In progress / planned:** modular dungeon level, ambience audio, PS1-style post-processing, menu and release build, proximity voice chat. See the [roadmap](#roadmap).
 
@@ -64,11 +77,11 @@ This is an active prototype built solo under a tight deadline. Progress is track
 
 **Controls:** `WASD` move · `Mouse` look · `Space` jump · `Shift` sprint · `E` interact / pick up / place relic · `G` drop relic · `Esc` release cursor.
 
-**Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `T` switch relic personality · `Y` force a relic roast. In extraction end screens `R` restarts the match.
+**Debug keys (Editor and Development builds only, stripped from release builds):** `V` simulated voice burst · `R` ragdoll yourself · `H` freeze monsters · `J` toggle full illumination · `M` mute / unmute relic chatter · `T` switch relic personality · `Y` force a relic roast · `F3` show / hide the debug readouts. In extraction end screens `R` restarts the match.
 
 **Networking:** the in-game panel offers *Host Local* and *Join Local Client* (Tugboat, works without Steam) and *Host Steam Lobby*. The Steam lobby path is not wired to a Steam transport yet and is unverified (see [networking limitations](docs/NETWORKING.md#5-current-limitations)). All multiplayer wiring is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, installed by the level builders and guarded by tests. `steam_appid.txt` contains `480` (Spacewar test AppID); replace it with the real AppID before a release. `-echo-no-steam` runs the game without touching Steam.
 
-**Calibration:** if the loudness bar in the top-left corner does not react well to your voice, select the Player and either tweak *Silence Db* / *Scream Db* on `MicrophoneLoudness`, or right-click the component → **Calibrate Silence** (stay quiet for 2 seconds).
+**Calibration:** the microphone calibrates itself, so the game feels the same on any headset, laptop or room. It learns the noise floor of the microphone (it drops at once and rises slowly, so speech is never mistaken for the room) and how loudly you talk, and maps normal speech to the same echo (about 7 m with the default curve) whatever the hardware; a scream 26 dB above your normal voice lights the whole cavern. The learned values appear in the debug bar and in the log (`[MicrophoneLoudness] Calibration`). To re-measure the room, right-click `MicrophoneLoudness` → **Calibrate Silence** (stay quiet for 2 seconds). To use fixed values instead, turn *Auto Calibrate* off and set *Silence Db* / *Scream Db* (the manual fallback is -55 / -12 dB). To make the echo easier or harder to trigger without touching the monster's hearing, change *Voice Sensitivity* on `EchoVisionController` (1 = original, 1.3 = about 23% less noise for every radius).
 
 ## Building and Testing
 
@@ -107,6 +120,7 @@ Assets/
 - 🌐 [Networking architecture (Fish-Net + Steam)](docs/NETWORKING.md)
 - 🗿 [Living relics, altar & game loop](docs/LIVING_RELICS_DESIGN.md)
 - 🕳️ [Level design: the catacombs](docs/LEVEL_DESIGN.md)
+- 🎨 [Visual design: shader, post-processing and photo mode](docs/VISUAL_DESIGN.md)
 - 🤝 [Contributing & Git workflow](CONTRIBUTING.md)
 - 📝 [Changelog](CHANGELOG.md)
 

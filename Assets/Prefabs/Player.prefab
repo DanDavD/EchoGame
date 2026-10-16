@@ -261,7 +261,7 @@ MonoBehaviour:
   _deviceName: 
   _sampleRate: 16000
   _sampleWindow: 512
-  _silenceDb: -35
+  _silenceDb: -55
   _screamDb: -12
   _attackSpeed: 30
   _releaseSpeed: 6

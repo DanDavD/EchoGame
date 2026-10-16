@@ -5,6 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "EchoProtocol.Core",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
         "EchoProtocol.Networking",
         "EchoProtocol.Editor",
         "FishNet.Runtime",

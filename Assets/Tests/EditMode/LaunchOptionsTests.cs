@@ -62,6 +62,14 @@ namespace EchoProtocol.Tests
         }
 
         [Test]
+        public void PhotoFlag_ImpliesHosting_ButNeverOverridesAnExplicitMode()
+        {
+            Assert.AreEqual(LaunchMode.Host, LaunchOptions.Parse(new[] { "-echo-photo" }, out _), "the photo mode needs a running match");
+            Assert.AreEqual(LaunchMode.Host, LaunchOptions.Parse(new[] { "-echo-photo", "C:\\shots" }, out _));
+            Assert.AreEqual(LaunchMode.Join, LaunchOptions.Parse(new[] { "-echo-photo", "-echo-join" }, out _), "an explicit join wins");
+        }
+
+        [Test]
         public void FlagsAreCaseInsensitive()
         {
             Assert.AreEqual(LaunchMode.Host, LaunchOptions.Parse(new[] { "-ECHO-HOST" }, out _));

@@ -48,6 +48,22 @@ namespace EchoProtocol.Relics
         private bool _isChoirActive;
         private float _noiseDecayTimer;
 
+        /// <summary>True while every relic is silenced (debug toggle): no subtitles, no speech blips, no dialogue noise.</summary>
+        public static bool Muted { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => Muted = false;
+
+        /// <summary>Silences or restores all relics; silencing also hides the line being shown right now.</summary>
+        public static void ToggleMuted()
+        {
+            Muted = !Muted;
+            Debug.Log($"<color=yellow>[RelicBrain]</color> Relics muted: {Muted}");
+            if (!Muted) return;
+
+            foreach (RelicDialogueUI ui in FindObjectsByType<RelicDialogueUI>(FindObjectsInactive.Exclude)) ui.ClearDialogue();
+        }
+
         // Cached carrier components
         private PlayerController _carrierController;
         private IVoiceLevelSource _carrierVoiceSource;
@@ -365,6 +381,8 @@ namespace EchoProtocol.Relics
 
         private void PlayDialogueLocal(RelicPersonalityType personality, RelicDialogueCategory category, int lineIndex, bool isScream)
         {
+            if (Muted) return;
+
             string line = RelicPersonality.GetLine(personality, category, lineIndex);
 
             // Display in High on Life subtitle UI & 3D speech bubble

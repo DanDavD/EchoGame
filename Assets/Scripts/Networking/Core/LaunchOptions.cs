@@ -68,7 +68,10 @@ namespace EchoProtocol.Networking.Core
             }
 
             if (host) return LaunchMode.Host;
-            return join ? LaunchMode.Join : LaunchMode.None;
+            if (join) return LaunchMode.Join;
+
+            // The photo mode needs a running match to photograph, so it implies hosting one.
+            return EchoProtocol.Visuals.PhotoMode.Requested(args, out _) ? LaunchMode.Host : LaunchMode.None;
         }
     }
 }
