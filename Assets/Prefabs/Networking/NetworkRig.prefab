@@ -18,7 +18,7 @@ GameObject:
   - component: {fileID: 3223369576000994390}
   - component: {fileID: 4187787371443286688}
   - component: {fileID: 6690305363273158406}
-  - component: {fileID: 3643120832860633243}
+  - component: {fileID: 4171862219216135055}
   - component: {fileID: 8489288416844124885}
   m_Layer: 0
   m_Name: NetworkRig
@@ -202,7 +202,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0217e82f2ff9cc428ca201df65db2de, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Steam.SteamLobbyManager
---- !u!114 &3643120832860633243
+--- !u!114 &4171862219216135055
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -211,11 +211,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 9056976266065070453}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 211a9f6ec51ddc14f908f5acc0cd0423, type: 3}
+  m_Script: {fileID: 11500000, guid: 533e84b9c20560b46ba13b9c3f38c5e8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Spawning.PlayerSpawner
+  m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Core.MatchPlayerSpawner
   _playerPrefab: {fileID: 1684840789457602177, guid: b64f70f0a7e91644498d6cdb68db39ed, type: 3}
-  _addToDefaultScene: 1
   Spawns: []
 --- !u!114 &8489288416844124885
 MonoBehaviour:

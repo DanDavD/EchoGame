@@ -48,7 +48,28 @@ namespace EchoProtocol.Tests
             Assert.IsTrue(bootstrap.StartLocalHost(), "StartLocalHost should start the server and the client");
 
             yield return NetTestUtil.WaitUntil(() => bootstrap.IsHosting && bootstrap.IsClientRunning, "server and client started");
+            yield return NetTestUtil.WaitUntil(() => bootstrap.PlayersInWaitingRoom == 1, "the host's own client to reach the waiting room");
+            Assert.IsTrue(bootstrap.StartMatch(), "the host starts the match");
             yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() != null, "the local player to spawn");
+        }
+
+        [UnityTest]
+        public IEnumerator Host_OpensAWaitingRoom_AndSpawnsEveryoneWhenTheMatchStarts()
+        {
+            NetworkBootstrap bootstrap = NetTestUtil.FindBootstrap();
+            Assert.IsTrue(bootstrap.StartLocalHost(), "StartLocalHost should start the server and the client");
+            yield return NetTestUtil.WaitUntil(() => bootstrap.IsHosting && bootstrap.IsClientRunning, "server and client started");
+            yield return NetTestUtil.WaitUntil(() => bootstrap.PlayersInWaitingRoom == 1, "the host's own client to reach the waiting room");
+
+            for (int i = 0; i < 10; i++) yield return null;
+            Assert.IsNull(NetTestUtil.FindLocalPlayer(), "nobody spawns before the host starts the match");
+            Assert.IsNull(Object.FindAnyObjectByType<EnemyBrain>(), "the monster waits for the match too");
+            Assert.IsFalse(bootstrap.IsMatchStarted);
+
+            Assert.IsTrue(bootstrap.StartMatch(), "the host starts the match");
+            yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() != null, "the player to spawn when the match starts");
+            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<EnemyBrain>() != null, "the monster to spawn when the match starts");
+            Assert.IsFalse(bootstrap.StartMatch(), "a match starts only once");
         }
 
         /// <summary>Puts the local player at <paramref name="position"/> so triggers and distances can be tested.</summary>
@@ -200,7 +221,9 @@ namespace EchoProtocol.Tests
             yield return NetTestUtil.WaitUntil(() => !bootstrap.IsNetworkActive, "networking to stop");
             yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() == null, "the player to despawn");
 
+            Assert.IsFalse(bootstrap.IsMatchStarted, "a new session starts in the waiting room");
             Assert.IsTrue(bootstrap.StartLocalHost(), "hosting again after a disconnect");
+            bootstrap.StartMatchWhenReady();
             yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() != null, "the player to spawn again");
             Assert.AreEqual(1, Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include).Length);
         }

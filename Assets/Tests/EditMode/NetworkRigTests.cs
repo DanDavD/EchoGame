@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using EchoProtocol.EditorTools;
 using EchoProtocol.Networking.Core;
-using FishNet.Component.Spawning;
+
 using FishNet.Managing;
 using FishNet.Managing.Object;
 using FishNet.Managing.Transporting;
@@ -44,7 +44,7 @@ namespace EchoProtocol.Tests
             Assert.IsNotNull(rig.GetComponent<NetworkManager>(), nameof(NetworkManager));
             Assert.IsNotNull(rig.GetComponent<FishNet.Managing.Server.ServerManager>(), "ServerManager");
             Assert.IsNotNull(rig.GetComponent<FishNet.Managing.Client.ClientManager>(), "ClientManager");
-            Assert.IsNotNull(rig.GetComponent<PlayerSpawner>(), nameof(PlayerSpawner));
+            Assert.IsNotNull(rig.GetComponent<MatchPlayerSpawner>(), nameof(MatchPlayerSpawner));
             Assert.IsNotNull(rig.GetComponent<NetworkBootstrap>(), nameof(NetworkBootstrap));
             Assert.IsNotNull(rig.GetComponent<EchoProtocol.Networking.Steam.SteamLobbyManager>(), "SteamLobbyManager");
         }
@@ -79,7 +79,7 @@ namespace EchoProtocol.Tests
             var enemy = AssetDatabase.LoadAssetAtPath<NetworkObject>(NetworkRigBuilder.EnemyPrefabPath);
             var relic = AssetDatabase.LoadAssetAtPath<NetworkObject>(NetworkRigBuilder.RelicPrefabPath);
 
-            var spawner = new SerializedObject(rig.GetComponent<PlayerSpawner>());
+            var spawner = new SerializedObject(rig.GetComponent<MatchPlayerSpawner>());
             Assert.AreSame(player, spawner.FindProperty("_playerPrefab").objectReferenceValue, "player prefab");
 
             var bootstrap = new SerializedObject(rig.GetComponent<NetworkBootstrap>());
@@ -139,7 +139,7 @@ namespace EchoProtocol.Tests
             {
                 var roots = scene.GetRootGameObjects();
                 Assert.IsFalse(roots.Any(go => go.GetComponentInChildren<PlayerController>(true) != null),
-                    "a scene Player would duplicate the one PlayerSpawner creates");
+                    "a scene Player would duplicate the one MatchPlayerSpawner creates");
                 Assert.IsFalse(roots.Any(go => go.GetComponentInChildren<EnemyBrain>(true) != null),
                     "a scene monster would duplicate the one the server spawns");
             }

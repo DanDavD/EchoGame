@@ -6,7 +6,6 @@ using FishNet.Managing.Object;
 using FishNet.Transporting;
 using FishNet.Transporting.Multipass;
 using FishNet.Transporting.Tugboat;
-using FishNet.Component.Spawning;
 using Steamworks;
 using UnityEngine;
 using EchoProtocol.Level;
@@ -19,7 +18,7 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(ClientManager))]
     [RequireComponent(typeof(SteamManager))]
     [RequireComponent(typeof(SteamLobbyManager))]
-    [RequireComponent(typeof(PlayerSpawner))]
+    [RequireComponent(typeof(MatchPlayerSpawner))]
     public class NetworkBootstrap : MonoBehaviour
     {
         [Header("Prefabs")]
@@ -33,6 +32,10 @@ namespace EchoProtocol.Networking.Core
 
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
+        private MatchPlayerSpawner _spawner;
+
+        // Set by the launch flags: start the match as soon as the server is up, skipping the waiting room.
+        private bool _startMatchWhenReady;
 
         // FishNet initialises only the transport it starts with, so the rig uses Multipass, which initialises both:
         // Tugboat (UDP, local and LAN play, tests) and FishySteamworks (Steam P2P through the Steam relay).
@@ -71,7 +74,8 @@ namespace EchoProtocol.Networking.Core
         {
             _networkManager = GetComponent<NetworkManager>();
             _lobbyManager = GetComponent<SteamLobbyManager>();
-            
+            _spawner = GetComponent<MatchPlayerSpawner>();
+
             _multipass = GetComponent<Multipass>();
             _tugboat = GetComponent<Tugboat>();
             _steamTransport = GetComponent<FishySteamworks.FishySteamworks>();
@@ -100,8 +104,7 @@ namespace EchoProtocol.Networking.Core
             {
                 _networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
             }
-            var playerSpawner = GetComponent<PlayerSpawner>();
-            if (playerSpawner != null) playerSpawner.OnSpawned += HandlePlayerSpawned;
+            if (_spawner != null) _spawner.OnSpawned += HandlePlayerSpawned;
 
             _matchFlow = FindAnyObjectByType<EchoProtocol.Extraction.GameExtractionManager>();
             if (_matchFlow != null) _matchFlow.ServerRestarting += ServerRespawnWorld;
@@ -145,8 +148,15 @@ namespace EchoProtocol.Networking.Core
                 address = null;
             }
 
-            if (mode == LaunchMode.Host) StartLocalHost();
-            else if (mode == LaunchMode.Join) JoinLocalClient(address);
+            // The flags are for automation (tests, the photo mode, two-process runs): they skip the waiting room.
+            if (mode == LaunchMode.Host)
+            {
+                if (StartLocalHost()) StartMatchWhenReady();
+            }
+            else if (mode == LaunchMode.Join)
+            {
+                JoinLocalClient(address);
+            }
         }
 
         private void OnDestroy()
@@ -162,8 +172,7 @@ namespace EchoProtocol.Networking.Core
             {
                 _networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
             }
-            var playerSpawner = GetComponent<PlayerSpawner>();
-            if (playerSpawner != null) playerSpawner.OnSpawned -= HandlePlayerSpawned;
+            if (_spawner != null) _spawner.OnSpawned -= HandlePlayerSpawned;
         }
 
         /// <summary>True while this instance is running the server (host).</summary>
@@ -174,6 +183,52 @@ namespace EchoProtocol.Networking.Core
 
         /// <summary>True when a server or a client is running.</summary>
         public bool IsNetworkActive => IsHosting || IsClientRunning;
+
+        /// <summary>True on the server once the host has started the match (the waiting room is over).</summary>
+        public bool IsMatchStarted => _spawner != null && _spawner.MatchStarted;
+
+        /// <summary>Connected players waiting for the host to start the match, host included. Server only.</summary>
+        public int PlayersInWaitingRoom => _spawner != null ? _spawner.WaitingCount : 0;
+
+        /// <summary>True on any peer once this peer's own player has spawned, i.e. it is in the match.</summary>
+        public bool HasLocalPlayer
+        {
+            get
+            {
+                var players = PlayerController.ActivePlayers;
+                for (int i = 0; i < players.Count; i++)
+                {
+                    if (players[i] != null && players[i].IsSpawned && players[i].IsOwner) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>Raised on the server when the host starts the match.</summary>
+        public event System.Action MatchStarted;
+
+        /// <summary>
+        /// Server only: leaves the waiting room. Spawns the monster, the relics and one player per connected client.
+        /// Players who connect later (a LAN join) spawn as soon as they arrive.
+        /// </summary>
+        public bool StartMatch()
+        {
+            if (!IsHosting || IsMatchStarted) return false;
+
+            ApplyLevelPlayerSpawns();
+            SpawnWorld();
+            _spawner.BeginMatch();
+            Debug.Log("[Bootstrap] Match started.");
+            MatchStarted?.Invoke();
+            return true;
+        }
+
+        /// <summary>Starts the match now if the server is up, or as soon as it is.</summary>
+        public void StartMatchWhenReady()
+        {
+            if (IsHosting) StartMatch();
+            else _startMatchWhenReady = true;
+        }
 
         /// <summary>True when this rig can host or join through Steam (the transport is there and Steam is running).</summary>
         public bool SteamAvailable => _steamTransport != null && SteamManager.Initialized;
@@ -230,6 +285,7 @@ namespace EchoProtocol.Networking.Core
             if (_networkManager == null) return;
 
             ForgetWorld();
+            _startMatchWhenReady = false;
             StopServer();
             if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
         }
@@ -290,7 +346,8 @@ namespace EchoProtocol.Networking.Core
 
         private void Update()
         {
-            if (_networkManager != null && _networkManager.IsServerStarted && !_worldSpawned)
+            // After a restart the world is despawned; spawn it again once the match is running.
+            if (_networkManager != null && _networkManager.IsServerStarted && IsMatchStarted && !_worldSpawned)
             {
                 SpawnWorld();
             }
@@ -300,12 +357,18 @@ namespace EchoProtocol.Networking.Core
         {
             if (args.ConnectionState == LocalConnectionState.Started)
             {
+                // The server opens the waiting room: the world and the players spawn when the host starts the match.
                 ApplyLevelPlayerSpawns();
-                SpawnWorld();
+                if (_startMatchWhenReady)
+                {
+                    _startMatchWhenReady = false;
+                    StartMatch();
+                }
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
                 ForgetWorld();
+                _startMatchWhenReady = false;
             }
         }
 
@@ -415,13 +478,7 @@ namespace EchoProtocol.Networking.Core
 #if UNITY_EDITOR
             EnsurePrefabReferences();
 #endif
-            var spawner = GetComponent<PlayerSpawner>();
-            FishNet.Object.NetworkObject playerPrefab = null;
-            if (spawner != null)
-            {
-                var fi = typeof(PlayerSpawner).GetField("_playerPrefab", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                playerPrefab = fi?.GetValue(spawner) as FishNet.Object.NetworkObject;
-            }
+            FishNet.Object.NetworkObject playerPrefab = _spawner != null ? _spawner.PlayerPrefab : null;
 
 #if UNITY_EDITOR
             if (playerPrefab == null)
@@ -472,7 +529,7 @@ namespace EchoProtocol.Networking.Core
         /// <summary>Points the player spawner at the level's player spawn points (resolved once the scene is loaded).</summary>
         private void ApplyLevelPlayerSpawns()
         {
-            var spawner = GetComponent<PlayerSpawner>();
+            var spawner = GetComponent<MatchPlayerSpawner>();
             var points = SpawnRegistry.Get(SpawnKind.Player);
             if (spawner == null || points.Count == 0) return;
 
@@ -483,7 +540,7 @@ namespace EchoProtocol.Networking.Core
 
         private void SetupSpawnPoints()
         {
-            var spawner = GetComponent<PlayerSpawner>();
+            var spawner = GetComponent<MatchPlayerSpawner>();
             if (spawner != null && (spawner.Spawns == null || spawner.Spawns.Length == 0))
             {
                 var s1 = new GameObject("SpawnPoint_1").transform;
@@ -504,8 +561,8 @@ namespace EchoProtocol.Networking.Core
         {
             if (_networkManager == null) return;
 
-            // Before connecting this panel is the way in; once connected it is just a debug readout.
-            if (IsNetworkActive && !DebugOverlay.Visible) return;
+            // Before the match this panel is the way in; once this player is in the match it is just a debug readout.
+            if (HasLocalPlayer && !DebugOverlay.Visible) return;
 
             GUILayout.BeginArea(new Rect(10, 10, 300, 400));
             
@@ -539,6 +596,7 @@ namespace EchoProtocol.Networking.Core
             else
             {
                 if (_networkManager.IsServerStarted) GUILayout.Label("[HOST] Server is running");
+                if (IsHosting && !IsMatchStarted && GUILayout.Button("Start Match")) StartMatch();
                 if (_networkManager.IsClientStarted) GUILayout.Label("[CLIENT] Connected");
 
                 if (_lobbyManager.CurrentLobbyID.IsValid())

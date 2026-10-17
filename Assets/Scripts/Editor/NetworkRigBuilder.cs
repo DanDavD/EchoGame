@@ -1,5 +1,5 @@
 using System.IO;
-using FishNet.Component.Spawning;
+
 using FishNet.Managing;
 using FishNet.Managing.Object;
 using FishNet.Managing.Transporting;
@@ -55,7 +55,7 @@ namespace EchoProtocol.EditorTools
             var root = new GameObject("NetworkRig");
             try
             {
-                // NetworkBootstrap requires the NetworkManager, ServerManager, ClientManager, Steam and PlayerSpawner components.
+                // NetworkBootstrap requires the NetworkManager, ServerManager, ClientManager, Steam and MatchPlayerSpawner components.
                 root.AddComponent<NetworkManager>();
                 var transportManager = root.AddComponent<TransportManager>();
 
@@ -77,7 +77,7 @@ namespace EchoProtocol.EditorTools
                 root.AddComponent<NetworkBootstrap>();
 
                 Assign(root.GetComponent<NetworkManager>(), "_spawnablePrefabs", spawnables);
-                Assign(root.GetComponent<PlayerSpawner>(), "_playerPrefab", player);
+                Assign(root.GetComponent<MatchPlayerSpawner>(), "_playerPrefab", player);
                 Assign(root.GetComponent<NetworkBootstrap>(), "_enemyPrefab", enemy);
                 Assign(root.GetComponent<NetworkBootstrap>(), "_relicPrefab", relic);
 
