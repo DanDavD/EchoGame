@@ -4,6 +4,7 @@ using FishNet.Managing;
 using FishNet.Managing.Object;
 using FishNet.Managing.Transporting;
 using FishNet.Object;
+using FishNet.Transporting.Multipass;
 using FishNet.Transporting.Tugboat;
 using UnityEditor;
 using UnityEngine;
@@ -26,6 +27,9 @@ namespace EchoProtocol.EditorTools
         public const string EnemyPrefabPath = "Assets/Prefabs/Enemy_Blind.prefab";
         public const string RelicPrefabPath = "Assets/Prefabs/Relic_Test.prefab";
         public const string DefaultPrefabObjectsPath = "Assets/DefaultPrefabObjects.asset";
+
+        /// <summary>Players per match, host included. The Steam lobby uses the same limit.</summary>
+        public const int MaxPlayers = 4;
 
         /// <summary>Loads the rig prefab, generating it first when it does not exist yet.</summary>
         public static GameObject EnsurePrefab()
@@ -54,8 +58,22 @@ namespace EchoProtocol.EditorTools
                 // NetworkBootstrap requires the NetworkManager, ServerManager, ClientManager, Steam and PlayerSpawner components.
                 root.AddComponent<NetworkManager>();
                 var transportManager = root.AddComponent<TransportManager>();
+
+                // FishNet initialises only the transport it starts with, so Multipass carries both: Tugboat for local and
+                // LAN play, FishySteamworks for Steam. The bootstrap starts the server on one of them at a time.
+                var multipass = root.AddComponent<Multipass>();
                 var tugboat = root.AddComponent<Tugboat>();
-                transportManager.Transport = tugboat;
+                var steam = root.AddComponent<FishySteamworks.FishySteamworks>();
+                multipass.GlobalServerActions = false;
+                SetTransports(multipass, tugboat, steam);
+
+                // A listen server run by a player's Steam client is peer to peer (the default is a dedicated game server).
+                var steamSettings = new SerializedObject(steam);
+                steamSettings.FindProperty("_peerToPeer").boolValue = true;
+                steamSettings.FindProperty("_maximumClients").intValue = MaxPlayers;
+                steamSettings.ApplyModifiedPropertiesWithoutUndo();
+
+                transportManager.Transport = multipass;
                 root.AddComponent<NetworkBootstrap>();
 
                 Assign(root.GetComponent<NetworkManager>(), "_spawnablePrefabs", spawnables);
@@ -73,6 +91,19 @@ namespace EchoProtocol.EditorTools
             {
                 Object.DestroyImmediate(root);
             }
+        }
+
+        private static void SetTransports(Multipass multipass, params FishNet.Transporting.Transport[] transports)
+        {
+            var so = new SerializedObject(multipass);
+            SerializedProperty list = so.FindProperty("_transports");
+            list.ClearArray();
+            for (int i = 0; i < transports.Length; i++)
+            {
+                list.InsertArrayElementAtIndex(i);
+                list.GetArrayElementAtIndex(i).objectReferenceValue = transports[i];
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void Assign(Object target, string field, Object value)

@@ -1,8 +1,11 @@
+using FishNet.Connection;
 using FishNet.Managing;
 using FishNet.Managing.Client;
 using FishNet.Managing.Server;
 using FishNet.Managing.Object;
 using FishNet.Transporting;
+using FishNet.Transporting.Multipass;
+using FishNet.Transporting.Tugboat;
 using FishNet.Component.Spawning;
 using Steamworks;
 using UnityEngine;
@@ -30,8 +33,12 @@ namespace EchoProtocol.Networking.Core
 
         private NetworkManager _networkManager;
         private SteamLobbyManager _lobbyManager;
-        private Transport _steamTransport;
-        private Transport _localTransport;
+
+        // FishNet initialises only the transport it starts with, so the rig uses Multipass, which initialises both:
+        // Tugboat (UDP, local and LAN play, tests) and FishySteamworks (Steam P2P through the Steam relay).
+        private Multipass _multipass;
+        private Tugboat _tugboat;
+        private FishySteamworks.FishySteamworks _steamTransport;
         private FishNet.Object.NetworkObject _spawnedEnemyInstance;
         private readonly System.Collections.Generic.List<FishNet.Object.NetworkObject> _spawnedRelics = new System.Collections.Generic.List<FishNet.Object.NetworkObject>();
 
@@ -65,8 +72,18 @@ namespace EchoProtocol.Networking.Core
             _networkManager = GetComponent<NetworkManager>();
             _lobbyManager = GetComponent<SteamLobbyManager>();
             
-            _steamTransport = GetComponent("FishySteamworks") as Transport;
-            _localTransport = GetComponent("Tugboat") as Transport;
+            _multipass = GetComponent<Multipass>();
+            _tugboat = GetComponent<Tugboat>();
+            _steamTransport = GetComponent<FishySteamworks.FishySteamworks>();
+            if (_multipass == null)
+            {
+                Debug.LogError("[Bootstrap] The rig has no Multipass transport. Rebuild it: Echo Protocol > Build > Network Rig Prefab.");
+            }
+            else if (_tugboat != null)
+            {
+                // FishNet asks Multipass for a client transport early; give it one so it does not pick one itself.
+                _multipass.SetClientTransport(_tugboat);
+            }
 
 #if UNITY_EDITOR
             EnsurePrefabReferences();
@@ -158,19 +175,16 @@ namespace EchoProtocol.Networking.Core
         /// <summary>True when a server or a client is running.</summary>
         public bool IsNetworkActive => IsHosting || IsClientRunning;
 
+        /// <summary>True when this rig can host or join through Steam (the transport is there and Steam is running).</summary>
+        public bool SteamAvailable => _steamTransport != null && SteamManager.Initialized;
+
         /// <summary>Starts a local host (server and client in this process) over the Tugboat transport, no Steam needed.</summary>
         public bool StartLocalHost()
         {
-            if (_networkManager == null || IsNetworkActive) return false;
-            if (_localTransport == null)
-            {
-                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot host locally.");
-                return false;
-            }
+            if (!CanStart(_tugboat, "Tugboat")) return false;
 
-            _networkManager.TransportManager.Transport = _localTransport;
-            bool serverStarted = _networkManager.ServerManager.StartConnection();
-            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            bool serverStarted = StartServerOn(_tugboat);
+            bool clientStarted = serverStarted && StartClientOn(_tugboat, null);
             Debug.Log($"[Bootstrap] Local host started. Server: {serverStarted}, Client: {clientStarted}");
             return serverStarted && clientStarted;
         }
@@ -178,38 +192,100 @@ namespace EchoProtocol.Networking.Core
         /// <summary>Connects to a local host over Tugboat. <paramref name="address"/> defaults to localhost.</summary>
         public bool JoinLocalClient(string address = null)
         {
-            if (_networkManager == null || IsNetworkActive) return false;
-            if (_localTransport == null)
-            {
-                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot join locally.");
-                return false;
-            }
+            if (!CanStart(_tugboat, "Tugboat")) return false;
 
-            _networkManager.TransportManager.Transport = _localTransport;
-            if (!string.IsNullOrWhiteSpace(address)) _localTransport.SetClientAddress(address);
-
-            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            bool clientStarted = StartClientOn(_tugboat, address);
             Debug.Log($"[Bootstrap] Local join started. Client: {clientStarted}");
             return clientStarted;
         }
 
-        /// <summary>Creates a friends-only Steam lobby; the host starts once Steam confirms the lobby.</summary>
-        public void HostSteamLobby()
+        /// <summary>
+        /// Starts a host over Steam (FishySteamworks, peer to peer through the Steam relay). Friends connect to this
+        /// player's SteamID, which the Steam lobby publishes. Steam must be running.
+        /// </summary>
+        public bool StartSteamHost()
         {
-            if (_networkManager == null || IsNetworkActive) return;
-            if (_steamTransport != null) _networkManager.TransportManager.Transport = _steamTransport;
-            _lobbyManager.HostLobby();
+            if (!CanStart(_steamTransport, "FishySteamworks")) return false;
+
+            bool serverStarted = StartServerOn(_steamTransport);
+            bool clientStarted = serverStarted && StartClientOn(_steamTransport, null);
+            Debug.Log($"[Bootstrap] Steam host started. Server: {serverStarted}, Client: {clientStarted}");
+            return serverStarted && clientStarted;
         }
 
-        /// <summary>Stops the server and the client and leaves the Steam lobby, if any.</summary>
+        /// <summary>Connects through Steam to the host whose SteamID64 is <paramref name="hostSteamId"/>.</summary>
+        public bool JoinSteamHost(string hostSteamId)
+        {
+            if (!CanStart(_steamTransport, "FishySteamworks")) return false;
+            if (string.IsNullOrWhiteSpace(hostSteamId)) return false;
+
+            bool clientStarted = StartClientOn(_steamTransport, hostSteamId);
+            Debug.Log($"[Bootstrap] Steam join started (host {hostSteamId}). Client: {clientStarted}");
+            return clientStarted;
+        }
+
+        /// <summary>Stops the server and the client. Leaving a Steam lobby is the caller's job.</summary>
         public void Disconnect()
         {
             if (_networkManager == null) return;
 
             ForgetWorld();
-            if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
+            StopServer();
             if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
-            if (_lobbyManager != null) _lobbyManager.LeaveLobby();
+        }
+
+        private bool CanStart(Transport transport, string transportName)
+        {
+            if (_networkManager == null || _multipass == null || IsNetworkActive) return false;
+            if (transport == null)
+            {
+                Debug.LogError($"[Bootstrap] The rig has no {transportName} transport. Rebuild it: Echo Protocol > Build > Network Rig Prefab.");
+                return false;
+            }
+            return true;
+        }
+
+        // Multipass runs with GlobalServerActions off, so only the chosen transport opens a server (a Steam host does not
+        // also open a UDP port, and a local host does not need Steam). ServerManager.StartConnection would ask Multipass to
+        // start every transport, so the server is started per transport here.
+        private bool StartServerOn(Transport transport)
+        {
+            int index = TransportIndex(transport);
+            return index >= 0 && _multipass.StartConnection(true, index);
+        }
+
+        private bool StartClientOn(Transport transport, string address)
+        {
+            _multipass.SetClientTransport(transport);
+            if (!string.IsNullOrWhiteSpace(address)) transport.SetClientAddress(address);
+            return _networkManager.ClientManager.StartConnection();
+        }
+
+        private void StopServer()
+        {
+            if (_multipass == null || !_networkManager.IsServerStarted) return;
+
+            // What ServerManager.StopConnection(true) does, minus the call Multipass refuses without GlobalServerActions.
+            var clients = new System.Collections.Generic.List<NetworkConnection>(_networkManager.ServerManager.Clients.Values);
+            if (clients.Count > 0) _networkManager.ServerManager.SendDisconnectMessages(clients, true);
+
+            for (int i = 0; i < _multipass.Transports.Count; i++)
+            {
+                if (_multipass.Transports[i].GetConnectionState(true) != LocalConnectionState.Stopped)
+                {
+                    _multipass.StopConnection(true, i);
+                }
+            }
+        }
+
+        private int TransportIndex(Transport transport)
+        {
+            for (int i = 0; i < _multipass.Transports.Count; i++)
+            {
+                if (_multipass.Transports[i] == transport) return i;
+            }
+            Debug.LogError($"[Bootstrap] {transport.GetType().Name} is not one of the Multipass transports. Rebuild the rig.");
+            return -1;
         }
 
         private void Update()
@@ -450,7 +526,9 @@ namespace EchoProtocol.Networking.Core
 
             if (!_networkManager.IsServerStarted && !_networkManager.IsClientStarted)
             {
-                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) HostSteamLobby();
+                GUI.enabled = SteamAvailable;
+                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) _lobbyManager.HostLobby();
+                GUI.enabled = true;
 
                 GUILayout.Space(10);
                 GUILayout.Label("-- Offline / LAN Testing --");
@@ -470,7 +548,11 @@ namespace EchoProtocol.Networking.Core
 
                 GUILayout.Space(5);
 
-                if (GUILayout.Button("Disconnect")) Disconnect();
+                if (GUILayout.Button("Disconnect"))
+                {
+                    Disconnect();
+                    _lobbyManager.LeaveLobby();
+                }
             }
             
             GUILayout.EndArea();

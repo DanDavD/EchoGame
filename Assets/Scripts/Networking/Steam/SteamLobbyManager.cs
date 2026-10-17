@@ -68,9 +68,12 @@ namespace EchoProtocol.Networking.Steam
             SteamMatchmaking.SetLobbyData(CurrentLobbyID, HostAddressKey, hostSteamId);
             SteamMatchmaking.SetLobbyData(CurrentLobbyID, "name", SteamFriends.GetPersonaName() + "'s Lobby");
 
-            // Start FishNet Host (Server + Client)
-            _networkManager.ServerManager.StartConnection();
-            _networkManager.ClientManager.StartConnection();
+            // Host over Steam: friends connect to this player's SteamID through the Steam relay.
+            if (!GetComponent<Core.NetworkBootstrap>().StartSteamHost())
+            {
+                Debug.LogError("[SteamLobby] Could not start the Steam host; leaving the lobby.");
+                LeaveLobby();
+            }
         }
 
         private void OnJoinRequest(GameLobbyJoinRequested_t callback)
@@ -107,16 +110,10 @@ namespace EchoProtocol.Networking.Steam
 
             Debug.Log("Connecting to Host SteamID: " + hostAddress);
 
-            // Set FishySteamworks Client Address
-            var transport = _networkManager.TransportManager.Transport;
-            if (transport != null)
+            if (!GetComponent<Core.NetworkBootstrap>().JoinSteamHost(hostAddress))
             {
-                transport.SetClientAddress(hostAddress);
-                _networkManager.ClientManager.StartConnection();
-            }
-            else
-            {
-                Debug.LogError("FishySteamworks transport not found! Cannot connect via Steam.");
+                Debug.LogError("[SteamLobby] Could not start the Steam client; leaving the lobby.");
+                LeaveLobby();
             }
         }
         

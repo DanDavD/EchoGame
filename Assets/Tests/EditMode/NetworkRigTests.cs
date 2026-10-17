@@ -7,6 +7,7 @@ using FishNet.Managing;
 using FishNet.Managing.Object;
 using FishNet.Managing.Transporting;
 using FishNet.Object;
+using FishNet.Transporting.Multipass;
 using FishNet.Transporting.Tugboat;
 using NUnit.Framework;
 using UnityEditor;
@@ -49,13 +50,24 @@ namespace EchoProtocol.Tests
         }
 
         [Test]
-        public void RigPrefab_UsesTugboatAsItsDefaultTransport()
+        public void RigPrefab_CarriesTugboatAndSteam_ThroughMultipass()
         {
             GameObject rig = LoadRig();
 
+            // FishNet initialises only the transport it starts with; Multipass is what makes both usable at runtime.
+            var multipass = rig.GetComponent<Multipass>();
+            Assert.IsNotNull(multipass, "Multipass must be the rig's transport");
+            Assert.AreSame(multipass, rig.GetComponent<TransportManager>().Transport);
+            Assert.IsFalse(multipass.GlobalServerActions, "the server must start on one transport at a time");
+
             var tugboat = rig.GetComponent<Tugboat>();
+            var steam = rig.GetComponent<FishySteamworks.FishySteamworks>();
             Assert.IsNotNull(tugboat, "Tugboat must be on the rig so local hosting works without Steam");
-            Assert.AreSame(tugboat, rig.GetComponent<TransportManager>().Transport);
+            Assert.IsNotNull(steam, "FishySteamworks must be on the rig so Steam lobbies can connect");
+            CollectionAssert.AreEquivalent(new FishNet.Transporting.Transport[] { tugboat, steam }, multipass.Transports.ToArray());
+
+            Assert.IsTrue(new SerializedObject(steam).FindProperty("_peerToPeer").boolValue,
+                "a match hosted by a player's Steam client is peer to peer, not a dedicated game server");
         }
 
         [Test]
