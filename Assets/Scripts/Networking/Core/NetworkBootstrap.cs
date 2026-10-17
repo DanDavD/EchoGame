@@ -6,7 +6,6 @@ using FishNet.Managing.Object;
 using FishNet.Transporting;
 using FishNet.Transporting.Multipass;
 using FishNet.Transporting.Tugboat;
-using Steamworks;
 using UnityEngine;
 using EchoProtocol.Level;
 using EchoProtocol.Networking.Steam;
@@ -552,62 +551,6 @@ namespace EchoProtocol.Networking.Core
 
                 spawner.Spawns = new Transform[] { s1, s2 };
             }
-        }
-
-        private void OnGUI()
-        {
-            if (_networkManager == null) return;
-
-            // Before the match this panel is the way in; once this player is in the match it is just a debug readout.
-            if (HasLocalPlayer && !DebugOverlay.Visible) return;
-
-            GUILayout.BeginArea(new Rect(10, 10, 300, 400));
-            
-            GUIStyle headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-
-            GUILayout.Label("--- Echo Protocol Networking ---", headerStyle);
-
-            if (SteamManager.Initialized)
-            {
-                GUILayout.Label($"Steam Status: Online ({SteamFriends.GetPersonaName()})");
-            }
-            else
-            {
-                GUILayout.Label("Steam Status: Offline / Not Initialized");
-            }
-
-            GUILayout.Space(10);
-
-            var session = GetComponent<NetworkSession>();
-            GUILayout.Label($"Session: {session.State}");
-            if (session.State == SessionState.Error)
-            {
-                GUILayout.Label(session.ErrorMessage);
-                if (GUILayout.Button("Back")) session.DismissError();
-            }
-
-            if (session.State == SessionState.Offline || session.State == SessionState.Error)
-            {
-                GUI.enabled = session.SteamAvailable;
-                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) session.HostSteam();
-                GUI.enabled = true;
-
-                GUILayout.Space(10);
-                GUILayout.Label("-- Offline / LAN Testing --");
-
-                if (GUILayout.Button("Host Local (No Steam)")) session.HostLocal();
-                if (GUILayout.Button("Join Local Client")) session.JoinLocal(null);
-            }
-            else
-            {
-                if (session.IsHost && session.State == SessionState.WaitingRoom && GUILayout.Button("Start Match")) session.StartMatch();
-                if (session.IsSteamSession && GUILayout.Button("Invite Friends")) session.Lobby.OpenInviteOverlay();
-
-                GUILayout.Space(5);
-                if (GUILayout.Button("Disconnect")) session.Leave();
-            }
-            
-            GUILayout.EndArea();
         }
     }
 }

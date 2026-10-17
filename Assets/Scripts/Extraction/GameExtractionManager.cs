@@ -344,11 +344,24 @@ namespace EchoProtocol.Extraction
             if (IsSpawned && IsServerStarted) _quoteSync.Value = index;
         }
 
+        private static bool HasLocalPlayer()
+        {
+            var players = PlayerController.ActivePlayers;
+            for (int i = 0; i < players.Count; i++)
+            {
+                if (players[i] != null && players[i].IsSpawned && players[i].IsOwner) return true;
+            }
+            return false;
+        }
+
         private string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
         private string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
 
         private void OnGUI()
         {
+            // In a networked level the match HUD waits until this player is in the match (not in the waiting room).
+            if (IsSpawned && !HasLocalPlayer()) return;
+
             int screenW = Screen.width;
             int screenH = Screen.height;
             ExtractionState state = State;

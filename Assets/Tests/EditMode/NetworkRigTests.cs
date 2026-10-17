@@ -48,6 +48,7 @@ namespace EchoProtocol.Tests
             Assert.IsNotNull(rig.GetComponent<NetworkBootstrap>(), nameof(NetworkBootstrap));
             Assert.IsNotNull(rig.GetComponent<EchoProtocol.Networking.Steam.SteamLobbyManager>(), "SteamLobbyManager");
             Assert.IsNotNull(rig.GetComponent<NetworkSession>(), nameof(NetworkSession));
+            Assert.IsNotNull(rig.GetComponent<EchoProtocol.Networking.UI.LobbyMenuUI>(), "LobbyMenuUI");
         }
 
         [Test]

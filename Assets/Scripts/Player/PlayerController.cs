@@ -196,7 +196,7 @@ public class PlayerController : NetworkBehaviour
 
         // Escape frees the cursor in the editor; click the Game view to lock it again.
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
-        else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) SetCursorLocked(true);
+        else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && !EchoProtocol.UI.EchoGui.PointerOverPanel) SetCursorLocked(true);
 
         if (!_controlEnabled) return; // ragdolled: physics owns the body, ignore input
 
