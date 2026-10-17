@@ -24,6 +24,24 @@ namespace EchoProtocol.Networking.Core
         public const string JoinFlag = "-echo-join";
         public const string NoSteamFlag = "-echo-no-steam";
 
+        /// <summary>Added by Steam when a player accepts an invite while the game is closed: <c>+connect_lobby &lt;id&gt;</c>.</summary>
+        public const string ConnectLobbyFlag = "+connect_lobby";
+
+        /// <summary>The Steam lobby to join from <c>+connect_lobby &lt;id&gt;</c>, or 0 when there is none.</summary>
+        public static ulong ConnectLobby(string[] args)
+        {
+            if (args == null) return 0;
+            for (int i = 0; i + 1 < args.Length; i++)
+            {
+                if (string.Equals(args[i], ConnectLobbyFlag, System.StringComparison.OrdinalIgnoreCase)
+                    && ulong.TryParse(args[i + 1], out ulong lobby))
+                {
+                    return lobby;
+                }
+            }
+            return 0;
+        }
+
         /// <summary>
         /// True when <c>-echo-no-steam</c> is present: the game then never touches the Steam client. Automated tests use
         /// it so they do not depend on (or fight over) a running Steam session; it also exercises the play-without-Steam path.

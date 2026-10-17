@@ -75,6 +75,7 @@ namespace EchoProtocol.EditorTools
 
                 transportManager.Transport = multipass;
                 root.AddComponent<NetworkBootstrap>();
+                root.AddComponent<NetworkSession>();
 
                 Assign(root.GetComponent<NetworkManager>(), "_spawnablePrefabs", spawnables);
                 Assign(root.GetComponent<MatchPlayerSpawner>(), "_playerPrefab", player);

@@ -17,7 +17,6 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(ServerManager))]
     [RequireComponent(typeof(ClientManager))]
     [RequireComponent(typeof(SteamManager))]
-    [RequireComponent(typeof(SteamLobbyManager))]
     [RequireComponent(typeof(MatchPlayerSpawner))]
     public class NetworkBootstrap : MonoBehaviour
     {
@@ -31,7 +30,6 @@ namespace EchoProtocol.Networking.Core
         [SerializeField] private LaunchMode _autoStart = LaunchMode.None;
 
         private NetworkManager _networkManager;
-        private SteamLobbyManager _lobbyManager;
         private MatchPlayerSpawner _spawner;
 
         // Set by the launch flags: start the match as soon as the server is up, skipping the waiting room.
@@ -73,7 +71,6 @@ namespace EchoProtocol.Networking.Core
         private void Awake()
         {
             _networkManager = GetComponent<NetworkManager>();
-            _lobbyManager = GetComponent<SteamLobbyManager>();
             _spawner = GetComponent<MatchPlayerSpawner>();
 
             _multipass = GetComponent<Multipass>();
@@ -581,36 +578,33 @@ namespace EchoProtocol.Networking.Core
 
             GUILayout.Space(10);
 
-            if (!_networkManager.IsServerStarted && !_networkManager.IsClientStarted)
+            var session = GetComponent<NetworkSession>();
+            GUILayout.Label($"Session: {session.State}");
+            if (session.State == SessionState.Error)
             {
-                GUI.enabled = SteamAvailable;
-                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) _lobbyManager.HostLobby();
+                GUILayout.Label(session.ErrorMessage);
+                if (GUILayout.Button("Back")) session.DismissError();
+            }
+
+            if (session.State == SessionState.Offline || session.State == SessionState.Error)
+            {
+                GUI.enabled = session.SteamAvailable;
+                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) session.HostSteam();
                 GUI.enabled = true;
 
                 GUILayout.Space(10);
                 GUILayout.Label("-- Offline / LAN Testing --");
 
-                if (GUILayout.Button("Host Local (No Steam)")) StartLocalHost();
-                if (GUILayout.Button("Join Local Client")) JoinLocalClient();
+                if (GUILayout.Button("Host Local (No Steam)")) session.HostLocal();
+                if (GUILayout.Button("Join Local Client")) session.JoinLocal(null);
             }
             else
             {
-                if (_networkManager.IsServerStarted) GUILayout.Label("[HOST] Server is running");
-                if (IsHosting && !IsMatchStarted && GUILayout.Button("Start Match")) StartMatch();
-                if (_networkManager.IsClientStarted) GUILayout.Label("[CLIENT] Connected");
-
-                if (_lobbyManager.CurrentLobbyID.IsValid())
-                {
-                    GUILayout.Label($"Lobby ID: {_lobbyManager.CurrentLobbyID}");
-                }
+                if (session.IsHost && session.State == SessionState.WaitingRoom && GUILayout.Button("Start Match")) session.StartMatch();
+                if (session.IsSteamSession && GUILayout.Button("Invite Friends")) session.Lobby.OpenInviteOverlay();
 
                 GUILayout.Space(5);
-
-                if (GUILayout.Button("Disconnect"))
-                {
-                    Disconnect();
-                    _lobbyManager.LeaveLobby();
-                }
+                if (GUILayout.Button("Disconnect")) session.Leave();
             }
             
             GUILayout.EndArea();

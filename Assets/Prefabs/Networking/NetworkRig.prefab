@@ -17,9 +17,10 @@ GameObject:
   - component: {fileID: 140952177030045918}
   - component: {fileID: 3223369576000994390}
   - component: {fileID: 4187787371443286688}
-  - component: {fileID: 6690305363273158406}
   - component: {fileID: 4171862219216135055}
   - component: {fileID: 8489288416844124885}
+  - component: {fileID: 6690305363273158406}
+  - component: {fileID: 1921658210191723426}
   m_Layer: 0
   m_Name: NetworkRig
   m_TagString: Untagged
@@ -190,18 +191,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd22d9b3826ce7d4694c2ab3a536e8fe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EchoProtocol.Networking::SteamManager
---- !u!114 &6690305363273158406
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9056976266065070453}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c0217e82f2ff9cc428ca201df65db2de, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Steam.SteamLobbyManager
 --- !u!114 &4171862219216135055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -231,3 +220,28 @@ MonoBehaviour:
   _enemyPrefab: {fileID: 1140000000000004, guid: 1310bfde76b4e9b46b216cc3ab99ac1b, type: 3}
   _relicPrefab: {fileID: 1140000000000002, guid: f723bb9707f94b33a77310f39b2ede5a, type: 3}
   _autoStart: 0
+--- !u!114 &6690305363273158406
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9056976266065070453}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0217e82f2ff9cc428ca201df65db2de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Steam.SteamLobbyManager
+--- !u!114 &1921658210191723426
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9056976266065070453}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0659fb2494817f54aaab383e2e68de16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Networking::EchoProtocol.Networking.Core.NetworkSession
+  _connectTimeoutSeconds: 20
