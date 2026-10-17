@@ -71,13 +71,13 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 2. Open the folder in Unity Hub with the exact editor version above.
 3. Open `Assets/Scenes/Dungeon_Main.unity` (the catacombs level). `Sandbox_Test.unity` is the small test arena.
    - If `Dungeon_Main` does not exist, use the menu **Echo Protocol > Build > Dungeon Scene (Catacombs)**.
-4. Press **Play**, click **Host Local (No Steam)** in the panel (top left) and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join Local Client**. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the panel.
+4. Press **Play**. In the menu, click **Host Local**, then **Start Match** in the waiting room, and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join IP** before the host starts. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the menu and the waiting room.
 
 **Controls:** `WASD` move, `Mouse` look, `Space` jump, `Shift` sprint, `E` interact / pick up / place relic, `G` drop relic, `Esc` release the cursor.
 
 **Debug keys** (Editor and Development builds only, they are removed from release builds): `V` simulated voice burst, `R` ragdoll yourself, `H` freeze the monsters, `J` toggle full illumination, `M` mute or unmute the relics, `T` switch relic personality, `Y` force a relic roast, `F3` show or hide the debug readouts. On the end screens, `R` restarts the match.
 
-**Networking:** the in-game panel offers *Host Local* and *Join Local Client* (Tugboat, works without Steam) and *Host Steam Lobby*. The Steam lobby path is not connected to a Steam transport yet and I have not verified it (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
+**Networking:** the menu offers *Host Match* and *Join a Friend* (friends-only Steam lobbies through the Steam relay, with invites from the game or the Steam overlay) and *Host Local* / *Join IP* (UDP, works without Steam). Everyone meets in a waiting room and the host starts the match. During a match, Esc shows the connection and *Leave Match*. Steam co-op needs two Steam accounts, so I test it by hand ([how](docs/NETWORKING.md#6-testing-steam-between-two-pcs)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
 
 **Microphone calibration:** the game calibrates itself, so it feels the same on any headset, laptop or room. It learns the noise floor of the microphone (the floor drops at once and rises slowly, so speech is never mistaken for room noise) and how loudly you talk. Normal speech always gives the same echo, about 7 m with the default curve, whatever the hardware. A scream 26 dB above your normal voice lights the whole cavern. The learned values show in the debug bar and in the log (`[MicrophoneLoudness] Calibration`).
 - To measure the room again, right-click `MicrophoneLoudness` and choose **Calibrate Silence**, then stay quiet for 2 seconds.
@@ -147,7 +147,8 @@ Assets/
 - [x] Networked altar and extraction loop, with one relic per shrine (the server decides docking, the symphony, win or lose, and the restart)
 - [x] Procedural look, post-processing, animated monster and photo mode
 - [x] Steam lobby code (friends-only lobbies, invites)
-- [ ] Steam transport wired and tested between two Steam accounts
+- [x] Steam transport wired (Multipass), waiting room, multiplayer menus and clear connection errors
+- [ ] Steam co-op verified between two Steam accounts
 - [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
 - [ ] Ambience audio and monster sound effects
 - [ ] Main menu, microphone calibration screen and a verified release build
