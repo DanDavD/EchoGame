@@ -35,7 +35,15 @@ namespace EchoProtocol.Relics
         NormalDrop = 6,
         FlyingScream = 7,
         LandedImpact = 8,
-        AltarPlaced = 9
+        AltarPlaced = 9,
+        /// <summary>Bursts into tears: the carrier was too loud, it landed hard, or nobody passed it around.</summary>
+        Crying = 10,
+        /// <summary>The team echoed its rhythm and it calms down.</summary>
+        Soothed = 11,
+        /// <summary>Same hands for too long: a warning to pass it on.</summary>
+        Fussy = 12,
+        /// <summary>Handed straight from one player to another.</summary>
+        PassedAround = 13
     }
 
     /// <summary>
@@ -357,6 +365,102 @@ namespace EchoProtocol.Relics
                     "Finally, a throne worthy of Lord Malakor! ...Wait, why is the socket locking my base?! PEASANT, UNHAND MY DIGNITY!",
                     "The ancient pedestal awakens! Bow down, blind vermin, for the cosmos now belongs to—wait, why is the monster sprinting at 50 miles per hour?!",
                     "Socketed into the grand celestial altar. As foretold by the elder scrolls! Now run, you miserable serf, or be devoured like an expired free trial!"
+                },
+                [(RelicPersonalityType.SarcasticCritic, RelicDialogueCategory.Crying)] = new[]
+                {
+                    "WAAAAH! You talked OVER me! I am a priceless artifact, not your Discord call! WAAAAH!",
+                    "Oh great, now I'm crying. On stream. Thanks. Echo my rhythm before I review-bomb this cave.",
+                    "SNIFF... you yelled in my ear like I'm your mic test. Do the beat. Do it NOW."
+                },
+                [(RelicPersonalityType.SarcasticCritic, RelicDialogueCategory.Soothed)] = new[]
+                {
+                    "...Fine. That echo was mid, but I'll stop crying. Don't let it go to your head.",
+                    "Okay. Okay. Rhythm accepted. Barely. 6 out of 10, would not recommend.",
+                    "Huh. You can actually keep a beat. Shocking. Carry on, quietly."
+                },
+                [(RelicPersonalityType.SarcasticCritic, RelicDialogueCategory.Fussy)] = new[]
+                {
+                    "Your hands are sweaty and I've been in them for an eternity. Pass me to someone with better grip.",
+                    "I'm getting tired of your face. Hand me to a teammate before I start crying on purpose.",
+                    "Rotate the carry, buddy. Even a hot potato gets passed around."
+                },
+                [(RelicPersonalityType.SarcasticCritic, RelicDialogueCategory.PassedAround)] = new[]
+                {
+                    "Oh, a hand-off. Smooth. Like a fumble in slow motion.",
+                    "New carrier. Please tell me this one showers.",
+                    "Passed around like a party snack. Love that for me."
+                },
+                [(RelicPersonalityType.AnxiousCoward, RelicDialogueCategory.Crying)] = new[]
+                {
+                    "WAAAAH! TOO LOUD! TOO LOUD! The monster heard that! I KNOW it heard that! WAAAAAH!",
+                    "I can't do this, I can't do this, I CAN'T! Somebody echo my little song, PLEASE!",
+                    "Why would you SCREAM while holding me?! My heart is a tiny glass cube! WAAAH!"
+                },
+                [(RelicPersonalityType.AnxiousCoward, RelicDialogueCategory.Soothed)] = new[]
+                {
+                    "Oh... oh that was nice. That was so nice. I'm okay. I'm okay now. Whisper, please.",
+                    "You... you echoed me. Everyone did. I feel safe. For about four seconds.",
+                    "Okay. Breathing. Breathing like a normal relic. Thank you, friends."
+                },
+                [(RelicPersonalityType.AnxiousCoward, RelicDialogueCategory.Fussy)] = new[]
+                {
+                    "Can someone else hold me? Please? I'm getting nervous in these hands. Very nervous.",
+                    "I've been with you so long I'm starting to panic. Pass me! Pass me gently!",
+                    "I-I think I need a different carrier. It's not you. It's the trembling."
+                },
+                [(RelicPersonalityType.AnxiousCoward, RelicDialogueCategory.PassedAround)] = new[]
+                {
+                    "Careful! Careful! Okay. New hands. Hi. Please don't drop me.",
+                    "EEP! Hand-off! Nobody fumble! ...Okay, we're good. We're good.",
+                    "New carrier! Hello! Are you a whisperer? Please be a whisperer."
+                },
+                [(RelicPersonalityType.DumbGloop, RelicDialogueCategory.Crying)] = new[]
+                {
+                    "WAAAAH! Gloop sad! Loud noise made Gloop's cube go wobbly! Sing Gloop the bloop song!",
+                    "BLOOP... bloop... WAAAH! Gloop wants the boop-boop rhythm! Do the boop-boop!",
+                    "Too loud! Gloop's square ears hurt! Gloop is a crying box now! WAAAH!"
+                },
+                [(RelicPersonalityType.DumbGloop, RelicDialogueCategory.Soothed)] = new[]
+                {
+                    "Hehehe! Boop-boop! Gloop happy again! You all sound like little bloops!",
+                    "YAY! The song worked! Gloop is a calm cube! Calm cube, calm cube!",
+                    "Wheee, that tickled Gloop's corners! No more crying. Gloop promise. Maybe."
+                },
+                [(RelicPersonalityType.DumbGloop, RelicDialogueCategory.Fussy)] = new[]
+                {
+                    "Gloop bored of these hands! Gloop want new hands! Pass the Gloop!",
+                    "Are we there yet? Gloop wants a different friend to carry Gloop!",
+                    "Hot potato! Hot potato! Pass Gloop before Gloop gets sad!"
+                },
+                [(RelicPersonalityType.DumbGloop, RelicDialogueCategory.PassedAround)] = new[]
+                {
+                    "Wheee! New friend! Hello new friend! Gloop loves you already!",
+                    "Pass! Gloop flew one inch! Best flight ever!",
+                    "Boing! Gloop changed hands! This is the best game!"
+                },
+                [(RelicPersonalityType.GrumpyElder, RelicDialogueCategory.Crying)] = new[]
+                {
+                    "HOW DARE YOU RAISE YOUR VOICE IN MY PRESENCE! ...I am not crying. These are royal tears. WAAAH!",
+                    "Insolent peasant! My eardrums are older than your planet! Echo my anthem at once!",
+                    "A sovereign does not weep. He... ROARS sadly. Perform the sacred rhythm, serfs!"
+                },
+                [(RelicPersonalityType.GrumpyElder, RelicDialogueCategory.Soothed)] = new[]
+                {
+                    "Acceptable. Your choir of peasants has appeased the crown. You may continue breathing.",
+                    "Hmph. The anthem was butchered, but sincerely. Lord Malakor is calm.",
+                    "Very well. Order is restored. Speak only in whispers, as the scrolls demand."
+                },
+                [(RelicPersonalityType.GrumpyElder, RelicDialogueCategory.Fussy)] = new[]
+                {
+                    "This servant has carried me too long and his hands smell of goblin. Pass me to another.",
+                    "The crown demands a fresh pair of hands. Rotate, peasants. NOW.",
+                    "I grow weary of this one's grip. Present me to your next worthiest serf."
+                },
+                [(RelicPersonalityType.GrumpyElder, RelicDialogueCategory.PassedAround)] = new[]
+                {
+                    "A ceremonial hand-off. Adequate. Do not let your knuckles touch my runes.",
+                    "New bearer. Kneel inwardly as you carry your king.",
+                    "Passed like a goblet at a feast. As is fitting."
                 }
             };
 

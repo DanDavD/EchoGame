@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Single gate for prototype debug shortcuts (V, J, H, T, Y, debug ragdoll).
+/// Single gate for prototype debug shortcuts (J, H, T, Y, M, debug ragdoll).
 /// They only work in the Editor and in Development builds, so a release build never exposes cheats.
 /// </summary>
 public static class DebugKeys

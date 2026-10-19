@@ -6,6 +6,7 @@ using EchoProtocol.Interaction;
 using EchoProtocol.Level;
 using EchoProtocol.Networking.Core;
 using EchoProtocol.Relics;
+using EchoProtocol.Rituals;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
@@ -188,6 +189,84 @@ namespace EchoProtocol.Tests
             yield return NetTestUtil.WaitUntil(() => SpawnRegistry.Get(SpawnKind.Player)
                 .Any(p => Vector3.Distance(p.transform.position, player.transform.position) < 1f),
                 "the player to be sent back to a spawn point");
+        }
+
+        [UnityTest]
+        public IEnumerator Host_SpawnsTheTeamNoiseDirector_AndTooMuchNoiseSendsTheMonster()
+        {
+            yield return HostAndWaitForPlayer();
+            yield return NetTestUtil.WaitUntil(() => TeamNoiseDirector.Instance != null && TeamNoiseDirector.Instance.IsSpawned, "the team noise director to spawn");
+            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<EnemyBrain>() != null, "the monster to spawn");
+
+            TeamNoiseDirector director = TeamNoiseDirector.Instance;
+            var monster = Object.FindAnyObjectByType<EnemyBrain>();
+            Assert.IsFalse(director.IsAlarmed, "a match starts quiet");
+
+            director.AddNoise(2f);
+            yield return null;
+
+            Assert.IsTrue(director.IsAlarmed, "a full meter raises the alarm");
+            Assert.IsTrue(monster.IsAlarmed, "the alarm sends the monster");
+            Assert.AreEqual(EnemyState.Hunt, monster.State, "the monster charges");
+            Assert.AreEqual(1, Object.FindObjectsByType<TeamNoiseDirector>(FindObjectsInactive.Include).Length, "one director per match");
+        }
+
+        [UnityTest]
+        public IEnumerator Host_ACryingRelic_StartsTheHumanEchoRitual_AndSilenceFailsIt()
+        {
+            yield return HostAndWaitForPlayer();
+            yield return NetTestUtil.WaitUntil(() => TeamNoiseDirector.Instance != null, "the team noise director to spawn");
+            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<RelicBrain>() != null, "a relic to spawn");
+
+            TeamNoiseDirector director = TeamNoiseDirector.Instance;
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+            RelicBrain relic = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Include)[0];
+            MoveNear(player, relic.transform.position + new Vector3(1.5f, 0f, 0f));
+            yield return null;
+
+            relic.StartCrying();
+            Assert.IsTrue(relic.IsCrying, "the server makes the relic cry");
+
+            yield return NetTestUtil.WaitUntil(() => director.Phase == RitualPhase.Calling, "the relic to call its rhythm");
+            Assert.AreSame(relic, director.RitualRelic);
+            CollectionAssert.Contains(director.RitualParticipants.ToList(), player, "a player next to the relic takes part");
+            Assert.GreaterOrEqual(director.RitualPattern.Count, 2, "a rhythm has at least two beats");
+
+            yield return NetTestUtil.WaitUntil(() => director.Phase == RitualPhase.Turn, "the player's turn");
+            Assert.IsTrue(director.IsLocalTurn, "the local player records their own echo");
+
+            // Nobody speaks in a test: the turn runs out, the round fails and the meter rises.
+            float before = director.Fill01;
+            yield return NetTestUtil.WaitUntil(() => director.Phase == RitualPhase.Result, "the silent turn to fail", 15f);
+            Assert.IsFalse(director.LastRoundSucceeded);
+            Assert.Greater(director.Fill01, before, "a failed round adds team noise");
+            Assert.IsTrue(relic.IsCrying, "a failed ritual leaves the relic crying");
+        }
+
+        [UnityTest]
+        public IEnumerator Host_ADockedRelic_StopsCrying()
+        {
+            yield return HostAndWaitForPlayer();
+            yield return NetTestUtil.WaitUntil(() => Object.FindAnyObjectByType<RelicCarryable>() != null, "a relic to spawn");
+
+            var altar = Object.FindAnyObjectByType<AltarReceptacle>();
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+            RelicCarryable relic = Object.FindObjectsByType<RelicCarryable>(FindObjectsInactive.Include)[0];
+            var brain = relic.GetComponent<RelicBrain>();
+
+            MoveNear(player, relic.transform.position);
+            yield return null;
+            relic.Interact(player);
+            yield return NetTestUtil.WaitUntil(() => relic.IsCarried, "the relic to be picked up");
+
+            brain.StartCrying();
+            Assert.IsTrue(brain.IsCrying);
+
+            MoveNear(player, altar.transform.position + new Vector3(0f, 0f, -1.5f));
+            yield return null;
+            altar.Interact(player);
+            yield return NetTestUtil.WaitUntil(() => relic.IsLockedInAltar, "the relic to dock");
+            yield return NetTestUtil.WaitUntil(() => !brain.IsCrying, "a docked relic falls asleep");
         }
 
         [UnityTest]

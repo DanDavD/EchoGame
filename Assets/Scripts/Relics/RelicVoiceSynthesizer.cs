@@ -17,6 +17,7 @@ namespace EchoProtocol.Relics
         [SerializeField] private AudioSource _voiceSource;
         [SerializeField] private AudioSource _screamSource;
         [SerializeField] private AudioSource _choirSource;
+        [SerializeField] private AudioSource _cryingSource;
 
         [Header("3D Spatial Settings")]
         [SerializeField] private float _minDistance = 2f;
@@ -39,6 +40,16 @@ namespace EchoProtocol.Relics
 
         private readonly Dictionary<RelicPersonalityType, AudioClip> _cachedChoirClips =
             new Dictionary<RelicPersonalityType, AudioClip>();
+
+        private readonly Dictionary<RelicPersonalityType, AudioClip> _cachedCryClips =
+            new Dictionary<RelicPersonalityType, AudioClip>();
+
+        private readonly Dictionary<RelicPersonalityType, AudioClip> _cachedBeatClips =
+            new Dictionary<RelicPersonalityType, AudioClip>();
+
+        private AudioClip _turnTickClip;
+        private AudioClip _successClip;
+        private AudioClip _failClip;
 
         private void Awake()
         {
@@ -63,6 +74,14 @@ namespace EchoProtocol.Relics
                 _choirSource = choirGo.AddComponent<AudioSource>();
             }
             ConfigureSource(_choirSource, true);
+
+            if (_cryingSource == null)
+            {
+                var cryGo = new GameObject("CryingAudioSource");
+                cryGo.transform.SetParent(transform, false);
+                _cryingSource = cryGo.AddComponent<AudioSource>();
+            }
+            ConfigureSource(_cryingSource, true);
 
             GenerateAllProceduralClips();
         }
@@ -188,6 +207,53 @@ namespace EchoProtocol.Relics
             }
         }
 
+        /// <summary>True while the crying loop is playing.</summary>
+        public bool IsCrying => _cryingSource != null && _cryingSource.isPlaying;
+
+        /// <summary>Starts the looping baby-like wail of a crying relic. Safe to call again while it already cries.</summary>
+        public void StartCrying(RelicPersonalityType personality)
+        {
+            if (_cryingSource == null) return;
+            if (!_cachedCryClips.TryGetValue(personality, out var clip)) return;
+            if (_cryingSource.isPlaying && _cryingSource.clip == clip) return;
+
+            _cryingSource.clip = clip;
+            _cryingSource.pitch = 1f;
+            _cryingSource.volume = 0.9f;
+            _cryingSource.Play();
+        }
+
+        /// <summary>Stops the crying loop.</summary>
+        public void StopCrying()
+        {
+            if (_cryingSource != null && _cryingSource.isPlaying) _cryingSource.Stop();
+        }
+
+        /// <summary>One beat of a ritual rhythm, in the relic's own timbre. <paramref name="accent"/> plays the first beat louder.</summary>
+        public void PlayRitualBeat(RelicPersonalityType personality, bool accent)
+        {
+            if (_voiceSource == null || !_cachedBeatClips.TryGetValue(personality, out var clip)) return;
+            _voiceSource.pitch = accent ? 1.12f : 1f;
+            _voiceSource.PlayOneShot(clip, accent ? 1f : 0.8f);
+        }
+
+        /// <summary>A short tick that tells the next player it is their turn to echo.</summary>
+        public void PlayTurnTick()
+        {
+            if (_voiceSource == null || _turnTickClip == null) return;
+            _voiceSource.pitch = 1f;
+            _voiceSource.PlayOneShot(_turnTickClip, 0.7f);
+        }
+
+        /// <summary>A rising jingle for a ritual the team got right, or a sad trombone for one it got wrong.</summary>
+        public void PlayRitualResult(bool success)
+        {
+            AudioClip clip = success ? _successClip : _failClip;
+            if (_voiceSource == null || clip == null) return;
+            _voiceSource.pitch = 1f;
+            _voiceSource.PlayOneShot(clip, 0.9f);
+        }
+
         // =========================================================================
         // PROCEDURAL WAVEFORM GENERATION
         // =========================================================================
@@ -212,7 +278,97 @@ namespace EchoProtocol.Relics
 
                 // 4. Generate seamless looping symphony choir clip (2.0 seconds)
                 _cachedChoirClips[type] = GenerateChoirClip(type);
+
+                // 5. Crying loop and ritual beat
+                _cachedCryClips[type] = GenerateCryClip(type);
+                _cachedBeatClips[type] = GenerateBeatClip(type);
             }
+
+            _turnTickClip = GenerateToneSequence("TurnTick", new[] { 1320f }, 0.06f, 0.5f);
+            _successClip = GenerateToneSequence("RitualSuccess", new[] { 523.25f, 659.25f, 783.99f, 1046.5f }, 0.11f, 0.55f);
+            _failClip = GenerateToneSequence("RitualFail", new[] { 392f, 369.99f, 349.23f, 293.66f }, 0.2f, 0.5f);
+        }
+
+        /// <summary>Base pitch (Hz) of each relic's cry and beat, matching its speaking voice.</summary>
+        private static float VoiceFrequency(RelicPersonalityType type) => type switch
+        {
+            RelicPersonalityType.SarcasticCritic => 330f,
+            RelicPersonalityType.AnxiousCoward => 700f,
+            RelicPersonalityType.DumbGloop => 440f,
+            RelicPersonalityType.GrumpyElder => 165f,
+            _ => 330f
+        };
+
+        private AudioClip GenerateCryClip(RelicPersonalityType type)
+        {
+            // A cartoon baby wail: a falling "WAAAH", two sobs per loop.
+            float duration = 1.6f;
+            int totalSamples = Mathf.RoundToInt(SampleRate * duration);
+            float[] samples = new float[totalSamples];
+            float baseFreq = VoiceFrequency(type);
+            float phase = 0f;
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float progress = (float)i / totalSamples;
+                float sob = (progress * 2f) % 1f;
+                float freq = baseFreq * Mathf.Lerp(1.35f, 0.85f, sob) * (1f + 0.04f * Mathf.Sin(2f * Mathf.PI * 6f * progress * duration));
+                phase += 2f * Mathf.PI * freq / SampleRate;
+
+                float wah = Mathf.Clamp01(sob * 12f) * Mathf.Clamp01((1f - sob) * 3f); // sharp attack, fading tail
+                float voice = Mathf.Sin(phase) + 0.45f * Mathf.Sin(phase * 2f) + 0.2f * Mathf.Sin(phase * 3f);
+                if (type == RelicPersonalityType.DumbGloop) voice = Mathf.Sign(Mathf.Sin(phase)) * 0.6f + 0.3f * Mathf.Sin(phase * 2f);
+
+                float edgeFade = Mathf.Clamp01(Mathf.Sin(progress * Mathf.PI) * 30f);
+                samples[i] = voice * wah * edgeFade * 0.42f;
+            }
+
+            var clip = AudioClip.Create($"Cry_{type}", totalSamples, 1, SampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateBeatClip(RelicPersonalityType type)
+        {
+            float duration = 0.16f;
+            int totalSamples = Mathf.RoundToInt(SampleRate * duration);
+            float[] samples = new float[totalSamples];
+            float freq = VoiceFrequency(type) * 1.5f;
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float t = (float)i / SampleRate;
+                float progress = (float)i / totalSamples;
+                float envelope = Mathf.Clamp01(progress * 40f) * Mathf.Exp(-progress * 6f);
+                float tone = Mathf.Sin(2f * Mathf.PI * freq * t) + 0.35f * Mathf.Sin(2f * Mathf.PI * freq * 2f * t);
+                samples[i] = tone * envelope * 0.6f;
+            }
+
+            var clip = AudioClip.Create($"Beat_{type}", totalSamples, 1, SampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private static AudioClip GenerateToneSequence(string name, float[] notes, float noteSeconds, float volume)
+        {
+            int perNote = Mathf.RoundToInt(SampleRate * noteSeconds);
+            float[] samples = new float[perNote * notes.Length];
+
+            for (int n = 0; n < notes.Length; n++)
+            {
+                for (int i = 0; i < perNote; i++)
+                {
+                    float t = (float)i / SampleRate;
+                    float progress = (float)i / perNote;
+                    float envelope = Mathf.Clamp01(progress * 30f) * Mathf.Exp(-progress * 3f);
+                    float tone = Mathf.Sin(2f * Mathf.PI * notes[n] * t) + 0.3f * Mathf.Sin(2f * Mathf.PI * notes[n] * 2f * t);
+                    samples[n * perNote + i] = tone * envelope * volume;
+                }
+            }
+
+            var clip = AudioClip.Create(name, samples.Length, 1, SampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
         }
 
         private AudioClip GenerateSpeechBlipClip(RelicPersonalityType type, int variant)
