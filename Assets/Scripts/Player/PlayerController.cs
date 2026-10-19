@@ -48,6 +48,12 @@ public class PlayerController : NetworkBehaviour
     /// <summary>True if the sprint action is currently held down.</summary>
     public bool IsSprinting => _sprintAction != null && _sprintAction.IsPressed();
 
+    /// <summary>
+    /// True while the local player holds the push-to-talk echo key (V). Only then does the voice light the cave;
+    /// talking without it is plain voice chat. Always false on remote avatars, whose input map is disabled.
+    /// </summary>
+    public bool IsEchoHeld => _echoAction != null && _echoAction.enabled && _echoAction.IsPressed();
+
     /// <summary>Full 3D movement velocity.</summary>
     public Vector3 CurrentVelocity => _horizontalVelocity + Vector3.up * _verticalVelocity;
 
@@ -76,6 +82,7 @@ public class PlayerController : NetworkBehaviour
     private InputAction _lookAction;
     private InputAction _jumpAction;
     private InputAction _sprintAction;
+    private InputAction _echoAction;
 
     private Vector3 _horizontalVelocity;
     private float _verticalVelocity;
@@ -101,6 +108,9 @@ public class PlayerController : NetworkBehaviour
         _lookAction = _map.FindAction("Look", true);
         _jumpAction = _map.FindAction("Jump", true);
         _sprintAction = _map.FindAction("Sprint", true);
+        _echoAction = _map.FindAction("Echo", false);
+        if (_echoAction == null)
+            Debug.LogWarning("[PlayerController] The input asset has no 'Echo' action (push-to-talk on V); the echo will never light.", this);
 
         if (GetComponent<EchoProtocol.Player.PlayerInteraction>() == null)
         {

@@ -106,6 +106,9 @@ namespace EchoProtocol.Extraction
         private void Start()
         {
             SpawnRuntimeRelics();
+
+            // Offline (the sandbox) the match builds its own team noise meter; a networked server spawns the prefab instead.
+            if (FindAnyObjectByType<FishNet.Managing.NetworkManager>() == null) EchoProtocol.Rituals.TeamNoiseDirector.CreateOffline();
         }
 
         /// <summary>

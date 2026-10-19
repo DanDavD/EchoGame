@@ -45,6 +45,11 @@ public class HearingSensor : MonoBehaviour
     /// <summary>True when the noise is a scream nearby, or has been constant for too long.</summary>
     public bool IsHuntTriggered => PerceivedLevel >= _huntThreshold || Suspicion >= 1f;
 
+    /// <summary>
+    /// Multiplies every perceived level (1 = normal). The team noise alarm raises it so the beast hears whispers.
+    /// </summary>
+    public float SensitivityMultiplier { get; set; } = 1f;
+
     /// <summary>Configured max hearing range (used by gizmos / debug).</summary>
     public float MaxHearingRange => _maxHearingRange;
 
@@ -81,7 +86,7 @@ public class HearingSensor : MonoBehaviour
 
             // Linear falloff: full loudness at 0 m, silent at max range.
             // (Walls do not muffle sound yet; occlusion is a possible future improvement.)
-            float perceived = ComputePerceivedLevel(sources[i].NoiseLevel01, distance, _maxHearingRange);
+            float perceived = Mathf.Clamp01(ComputePerceivedLevel(sources[i].NoiseLevel01, distance, _maxHearingRange) * SensitivityMultiplier);
 
             if (perceived > best)
             {

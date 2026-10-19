@@ -73,6 +73,21 @@ namespace EchoProtocol.Tests
             var bootstrap = new SerializedObject(rig.GetComponent<NetworkBootstrap>());
             Assert.AreSame(enemy, bootstrap.FindProperty("_enemyPrefab").objectReferenceValue, "enemy prefab");
             Assert.AreSame(relic, bootstrap.FindProperty("_relicPrefab").objectReferenceValue, "relic prefab");
+
+            var teamNoise = AssetDatabase.LoadAssetAtPath<NetworkObject>(TeamNoisePrefabBuilder.PrefabPath);
+            Assert.IsNotNull(teamNoise, "the TeamNoiseDirector prefab must exist (Echo Protocol > Build > Team Noise Director Prefab)");
+            Assert.AreSame(teamNoise, bootstrap.FindProperty("_teamNoisePrefab").objectReferenceValue, "team noise director prefab");
+        }
+
+        [Test]
+        public void TeamNoisePrefab_CarriesTheDirectorItsHudAndItsMusic()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TeamNoisePrefabBuilder.PrefabPath);
+            Assert.IsNotNull(prefab, "the TeamNoiseDirector prefab must exist");
+            Assert.IsNotNull(prefab.GetComponent<NetworkObject>(), "it is spawned over the network");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseDirector>(), "director");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseHud>(), "HUD");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseAudio>(), "music");
         }
 
         [Test]
@@ -86,7 +101,7 @@ namespace EchoProtocol.Tests
             var registered = new List<NetworkObject>();
             for (int i = 0; i < spawnables.GetObjectCount(); i++) registered.Add(spawnables.GetObject(true, i));
 
-            foreach (string path in new[] { NetworkRigBuilder.PlayerPrefabPath, NetworkRigBuilder.EnemyPrefabPath, NetworkRigBuilder.RelicPrefabPath })
+            foreach (string path in new[] { NetworkRigBuilder.PlayerPrefabPath, NetworkRigBuilder.EnemyPrefabPath, NetworkRigBuilder.RelicPrefabPath, TeamNoisePrefabBuilder.PrefabPath })
             {
                 var prefab = AssetDatabase.LoadAssetAtPath<NetworkObject>(path);
                 Assert.IsTrue(registered.Contains(prefab), $"{path} is not in the spawnable prefab list: FishNet could not spawn it");

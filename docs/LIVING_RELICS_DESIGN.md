@@ -19,7 +19,8 @@ flowchart TD
 ### Design rules
 1. **Your voice is more than a flashlight, it is also a way to interact.** If you scream into the microphone, the relic you carry reacts and roasts you.
 2. **A relic is a walking hazard.** When it chatters, complains or flies through the air, it reports noise to `NoiseRegistry`, which alerts the blind monster and attracts it.
-3. **The symphony is the climax.** When all 3 relics are on the central altar, they sing an absurd choir that floods the cavern with light for good, unlocks the exit portal and sends the monster into a berserk chase.
+3. **A relic is sensitive.** It must be carried whispering and passed around, or it cries until the team soothes it with the human echo ritual. See [Team noise and relic rituals](TEAM_NOISE_AND_RITUALS.md).
+4. **The symphony is the climax.** When all 3 relics are on the central altar, they sing an absurd choir that floods the cavern with light for good, unlocks the exit portal and sends the monster into a berserk chase.
 
 ---
 

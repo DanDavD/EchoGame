@@ -7,6 +7,7 @@ namespace EchoProtocol.Player
     /// <summary>
     /// Handles player interaction (E to pick up/interact, G to drop),
     /// carry socket management, and auto-drop when ragdolling.
+    /// While carrying a relic, looking at a teammate close by and pressing E hands it over ("pass the baby").
     /// Operates on the local player owner.
     /// </summary>
     public class PlayerInteraction : MonoBehaviour
@@ -25,6 +26,7 @@ namespace EchoProtocol.Player
         private PlayerController _playerController;
         private PlayerRagdoll _playerRagdoll;
         private IInteractable _hoveredInteractable;
+        private PlayerController _hoveredTeammate;
         private RelicCarryable _carriedRelic;
 
         /// <summary>Transform where carried items are anchored.</summary>
@@ -98,6 +100,7 @@ namespace EchoProtocol.Player
         private void DetectInteractable()
         {
             _hoveredInteractable = null;
+            _hoveredTeammate = null;
 
             Transform cam = _playerController.CameraPivot != null ? _playerController.CameraPivot : transform;
             Ray ray = new Ray(cam.position, cam.forward);
@@ -106,6 +109,13 @@ namespace EchoProtocol.Player
             {
                 // Look for IInteractable on hit collider or parents
                 _hoveredInteractable = hit.collider.GetComponentInParent<IInteractable>();
+
+                // With a relic in hand, a teammate in the crosshair is someone to pass it to.
+                if (_carriedRelic != null)
+                {
+                    PlayerController other = hit.collider.GetComponentInParent<PlayerController>();
+                    if (other != null && other != _playerController) _hoveredTeammate = other;
+                }
             }
         }
 
@@ -116,7 +126,12 @@ namespace EchoProtocol.Player
             // E key: Interact with hovered object
             if (Keyboard.current.eKey.wasPressedThisFrame)
             {
-                if (_hoveredInteractable != null)
+                if (_carriedRelic != null && _hoveredTeammate != null)
+                {
+                    // Looking at a teammate: hand the relic over instead of throwing it at them.
+                    if (_carriedRelic.CanPassTo(_playerController, _hoveredTeammate)) _carriedRelic.PassTo(_playerController, _hoveredTeammate);
+                }
+                else if (_hoveredInteractable != null)
                 {
                     if (_hoveredInteractable.CanInteract(_playerController))
                     {
@@ -186,8 +201,27 @@ namespace EchoProtocol.Player
             int screenW = Screen.width;
             int screenH = Screen.height;
 
+            // Hand-off prompt
+            if (_carriedRelic != null && _hoveredTeammate != null)
+            {
+                bool canPass = _carriedRelic.CanPassTo(_playerController, _hoveredTeammate);
+                GUIStyle passStyle = new GUIStyle(GUI.skin.box)
+                {
+                    fontSize = 15,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter
+                };
+
+                string text = canPass ? $"[E] Pass {_carriedRelic.RelicName} to your teammate" : "Teammate's hands are full (or too far)";
+                Vector2 size = passStyle.CalcSize(new GUIContent(text));
+                Rect rect = new Rect((screenW - size.x - 24) / 2f, (screenH / 2f) + 45f, size.x + 24, size.y + 8);
+
+                GUI.color = canPass ? new Color(0.5f, 1f, 0.8f, 0.95f) : new Color(1f, 0.6f, 0.5f, 0.9f);
+                GUI.Box(rect, text, passStyle);
+                GUI.color = Color.white;
+            }
             // Interaction Prompt
-            if (_hoveredInteractable != null && _hoveredInteractable.CanInteract(_playerController))
+            else if (_hoveredInteractable != null && _hoveredInteractable.CanInteract(_playerController))
             {
                 GUIStyle promptStyle = new GUIStyle(GUI.skin.box)
                 {

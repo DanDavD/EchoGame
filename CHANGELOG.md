@@ -6,6 +6,14 @@ I have not tagged a release yet, so everything is under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **Push-to-talk echo (`V`)**: the voice only lights the cave while the new `Echo` input action is held; plain voice chat reveals nothing. The monster hears chat at 0.6 and an echo at 1.25 of the voice level (`VoiceNoiseEmitter.Weigh`), and the echo flag is replicated so the server weighs remote voices correctly.
+- **Team noise meter (`TeamNoiseBudget`, `TeamNoiseDirector`)**: every voice and every crying relic fills one shared meter, silence drains it. A full meter sends the monster charging at the loudest source with sharper hearing (`EnemyBrain.AlarmAll`), starts procedural alarm music (`TeamNoiseAudio`) and only ends after 4 s of total silence. HUD in `TeamNoiseHud`.
+- **Sensitive relics (`RelicTemper`)**: a relic cries when its carrier talks above a whisper, when it lands hard, or when one player keeps it too long while teammates are around. Crying is constant monster-attracting noise with a procedural wail; docking it in the altar puts it to sleep. New dialogue categories: `Crying`, `Soothed`, `Fussy`, `PassedAround`.
+- **Pass the baby**: looking at a teammate within 3 m and pressing `E` hands the carried relic over (`RelicCarryable.PassTo`, validated by the server).
+- **Human echo ritual (`VoiceOnsetDetector`, `EchoRhythm`)**: a crying relic plays a short rhythm and the players near it repeat it one by one with their voice. Only the rhythm is checked (any syllable, any language), timed on each player's own machine. Right: the relic calms down and the meter drops. Wrong: the meter rises and the next rhythm is easier; three failures make it cry itself out and start the alarm.
+- **`TeamNoiseDirector` prefab** built by `TeamNoisePrefabBuilder`, registered as spawnable and spawned by `NetworkBootstrap` once per match; the offline sandbox builds a local one.
+- **Tests**: EditMode for the meter, push to talk, syllable detection, rhythm matching and the relic's mood; PlayMode for the networked alarm, a crying relic starting the ritual, a docked relic falling asleep, the offline director and a correct echo soothing a relic.
+- **Debug keys** `N` (add team noise) and `B` (make the nearest relic cry). See `docs/TEAM_NOISE_AND_RITUALS.md`.
 
 - **Automatic microphone calibration** (`MicrophoneCalibrator.cs`, `MicrophoneLoudness.cs`). The game learns what silence, normal speech and a scream sound like on each microphone, so it plays the same on any headset, laptop or room.
   - The noise floor follows the quietest recent readings. It drops at once and rises slowly, and it can only rise fast during a 2 second warm-up.
@@ -90,6 +98,8 @@ I have not tagged a release yet, so everything is under Unreleased.
 - **Documentation**: README, architecture overview, `docs/ENEMY_AI.md` (hearing model, state diagram and tuning guide) and the pull request template.
 
 ### Changed
+- `V` is the push-to-talk echo key and no longer fakes a voice burst in debug builds.
+- `MicrophoneLoudness` exposes `RawLevel01`, the calibrated level before smoothing, for rhythm detection.
 
 - **Networked altar and match flow**: `AltarReceptacle` and `GameExtractionManager` are now networked scene objects. The server decides every docking, the symphony, the win or lose result and the restart, and clients follow through `SyncVar`s. The escape portal reports to the server. A restart respawns the monster and the relics and sends players back to their spawn points, without reloading the scene (that would end the session). The pure rules live in `AltarRules` and `MatchRules`, with EditMode tests.
 - **One relic per shrine, personality replicated**: the server spawns all three relics at the level's shrines and their personality reaches every peer. A docked relic locks on every peer.

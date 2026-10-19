@@ -47,6 +47,12 @@ public class EnemyBrain : NetworkBehaviour
     [Tooltip("Minimum seconds between two catch events.")]
     [SerializeField] private float _catchCooldown = 3f;
 
+    [Header("Team noise alarm")]
+    [Tooltip("Speed (m/s) while the team's noise alarm is on: the beast charges at whoever made the racket.")]
+    [SerializeField] private float _alarmSpeed = 7f;
+    [Tooltip("Hearing multiplier while the alarm is on: it hears whispers it would normally miss.")]
+    [SerializeField] private float _alarmHearingBoost = 1.6f;
+
     [Header("Debug")]
     [SerializeField] private bool _showDebugLabel = true;
 
@@ -125,7 +131,7 @@ public class EnemyBrain : NetworkBehaviour
             {
                 if (State == EnemyState.Idle) _agent.speed = _wanderSpeed;
                 else if (State == EnemyState.Investigate) _agent.speed = _investigateSpeed;
-                else if (State == EnemyState.Hunt) _agent.speed = _huntSpeed;
+                else if (State == EnemyState.Hunt) _agent.speed = CurrentHuntSpeed;
             }
         }
     }
@@ -158,6 +164,57 @@ public class EnemyBrain : NetworkBehaviour
         Debug.Log($"<color=red>[EnemyBrain]</color> {name} is ENRAGED! Speed: {_huntSpeed} m/s", this);
     }
 
+    /// <summary>True while the team's noise alarm has this monster charging (server side).</summary>
+    public bool IsAlarmed => _alarmed;
+
+    private float CurrentHuntSpeed => _alarmed && !_enraged ? Mathf.Max(_huntSpeed, _alarmSpeed) : _huntSpeed;
+
+    /// <summary>
+    /// The team made too much noise: every monster charges at <paramref name="noisePosition"/> and hears better until
+    /// <see cref="CalmAll"/>. Silence still works: once it hears nothing it loses the trail as usual.
+    /// </summary>
+    public static void AlarmAll(Vector3 noisePosition)
+    {
+        for (int i = 0; i < _activeEnemies.Count; i++)
+        {
+            if (_activeEnemies[i] != null) _activeEnemies[i].Alarm(noisePosition);
+        }
+    }
+
+    /// <summary>The team has stayed quiet long enough: the monsters go back to their normal hunting.</summary>
+    public static void CalmAll()
+    {
+        for (int i = 0; i < _activeEnemies.Count; i++)
+        {
+            if (_activeEnemies[i] != null) _activeEnemies[i].Calm();
+        }
+    }
+
+    /// <summary>Charges at <paramref name="noisePosition"/> at alarm speed. Ignored on remote clients and when enraged.</summary>
+    public void Alarm(Vector3 noisePosition)
+    {
+        if (IsSpawned && !IsServerStarted) return;
+        if (_enraged || _agent == null || !_agent.isOnNavMesh) return;
+
+        _alarmed = true;
+        if (_sensor != null) _sensor.SensitivityMultiplier = _alarmHearingBoost;
+
+        EnterState(EnemyState.Hunt);
+        MoveTo(noisePosition);
+        Debug.Log($"<color=red>[EnemyBrain]</color> {name}: team noise alarm! Charging at {noisePosition}.", this);
+    }
+
+    /// <summary>Ends the alarm: normal speed and hearing again. The current state carries on.</summary>
+    public void Calm()
+    {
+        if (IsSpawned && !IsServerStarted) return;
+        if (!_alarmed) return;
+
+        _alarmed = false;
+        if (_sensor != null) _sensor.SensitivityMultiplier = 1f;
+        if (_agent != null && _agent.isOnNavMesh && State == EnemyState.Hunt) _agent.speed = CurrentHuntSpeed;
+    }
+
     /// <summary>Raised on every transition: (previous, new).</summary>
     public event System.Action<EnemyState, EnemyState> OnStateChanged;
 
@@ -173,6 +230,7 @@ public class EnemyBrain : NetworkBehaviour
     private bool _idleWaiting;
     private bool _searching;
     private bool _enraged;
+    private bool _alarmed;
     private float _timer;
     private float _lostTimer;
     private float _nextCatchTime;
@@ -286,7 +344,7 @@ public class EnemyBrain : NetworkBehaviour
                 break;
 
             case EnemyState.Hunt:
-                _agent.speed = _huntSpeed;
+                _agent.speed = CurrentHuntSpeed;
                 MoveTo(_sensor.LastHeardPosition);
                 break;
         }
@@ -359,6 +417,11 @@ public class EnemyBrain : NetworkBehaviour
             // at a stale (or never-set, i.e. world origin) last-heard position.
             _lostTimer = 0f;
             RefreshTarget(playerPos);
+        }
+        else if (_alarmed && !ReachedDestination())
+        {
+            // Charging at the alarm: it only starts to doubt once it reaches the spot and hears nobody there.
+            _lostTimer = 0f;
         }
         else
         {
@@ -505,7 +568,7 @@ public class EnemyBrain : NetworkBehaviour
         if (IsSpawned && !base.IsServerStarted) return;
         if (!_showDebugLabel || !DebugOverlay.Visible) return;
         GUI.color = State == EnemyState.Hunt ? Color.red : (State == EnemyState.Investigate ? Color.yellow : Color.white);
-        string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}";
+        string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}{(_alarmed ? " [ALARM]" : "")}";
         GUI.Label(new Rect(10f, 54f, 500f, 22f),
             $"{statusText}  |  heard {_sensor.PerceivedLevel:F2}  |  suspicion {_sensor.Suspicion:F2}");
         GUI.color = Color.white;
