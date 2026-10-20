@@ -55,14 +55,14 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - Sensitive relics: they cry when the carrier is too loud, when they land hard, or when nobody passes them around; players hand them over with `E`. A crying relic is calmed with the human echo ritual, a rhythm the team repeats with their voices, checked by rhythm only.
 - Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
 - A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
-- Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs locally over Tugboat. Steam lobbies exist, but the Steam transport is not wired yet (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
+- Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs over LAN (Tugboat) and over Steam (friends-only lobbies, invites and the Steam relay), with a waiting room and multiplayer menus. LAN play is covered by automated tests; Steam needs two accounts, so I test it by hand (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
 - Living relics: carryable, talking relics with procedural voices, jokes, and reactions to the microphone, sprinting and the monster.
 - The altar, the symphony choir and the escape portal. This gives a full loop from objective to extraction to victory or defeat. The server decides it in multiplayer, and it also runs offline in the sandbox (see [networking](docs/NETWORKING.md)).
 - A catacombs level generated from a text map, with a validator and tests.
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** ambience audio, a retro low-resolution look, a main menu, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
+**Still to do:** a Steam test between two PCs, ambience audio, a retro low-resolution look, a settings and microphone calibration screen, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -83,13 +83,13 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 2. Open the folder in Unity Hub with the exact editor version above.
 3. Open `Assets/Scenes/Dungeon_Main.unity` (the catacombs level). `Sandbox_Test.unity` is the small test arena.
    - If `Dungeon_Main` does not exist, use the menu **Echo Protocol > Build > Dungeon Scene (Catacombs)**.
-4. Press **Play**, click **Host Local (No Steam)** in the panel (top left) and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join Local Client**. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the panel.
+4. Press **Play**. In the menu, click **Host Local**, then **Start Match** in the waiting room, and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join IP** before the host starts. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the menu and the waiting room.
 
 **Controls:** `WASD` move, `Mouse` look, `Space` jump, `Shift` sprint, `V` (hold) echo with your voice, `E` interact / pick up / place relic / pass the relic to the teammate you look at, `G` drop relic, `Esc` release the cursor.
 
 **Debug keys** (Editor and Development builds only, they are removed from release builds): `N` add team noise, `B` make the nearest relic cry, `R` ragdoll yourself, `H` freeze the monsters, `J` toggle full illumination, `M` mute or unmute the relics, `T` switch relic personality, `Y` force a relic roast, `F3` show or hide the debug readouts. On the end screens, `R` restarts the match.
 
-**Networking:** the in-game panel offers *Host Local* and *Join Local Client* (Tugboat, works without Steam) and *Host Steam Lobby*. The Steam lobby path is not connected to a Steam transport yet and I have not verified it (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
+**Networking:** the menu offers *Host Match* and *Join a Friend* (friends-only Steam lobbies through the Steam relay, with invites from the game or the Steam overlay) and *Host Local* / *Join IP* (UDP, works without Steam). Everyone meets in a waiting room and the host starts the match. During a match, Esc shows the connection and *Leave Match*. Steam co-op needs two Steam accounts, so I test it by hand ([how](docs/NETWORKING.md#6-testing-steam-between-two-pcs)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
 
 **Microphone calibration:** the game calibrates itself, so it feels the same on any headset, laptop or room. It learns the noise floor of the microphone (the floor drops at once and rises slowly, so speech is never mistaken for room noise) and how loudly you talk. Normal speech always gives the same echo, about 7 m with the default curve, whatever the hardware. A scream 26 dB above your normal voice lights the whole cavern. The learned values show in the debug bar and in the log (`[MicrophoneLoudness] Calibration`).
 - To measure the room again, right-click `MicrophoneLoudness` and choose **Calibrate Silence**, then stay quiet for 2 seconds.
@@ -161,7 +161,8 @@ Assets/
 - [x] Networked altar and extraction loop, with one relic per shrine (the server decides docking, the symphony, win or lose, and the restart)
 - [x] Procedural look, post-processing, animated monster and photo mode
 - [x] Steam lobby code (friends-only lobbies, invites)
-- [ ] Steam transport wired and tested between two Steam accounts
+- [x] Steam transport wired (Multipass), waiting room, multiplayer menus and clear connection errors
+- [ ] Steam co-op verified between two Steam accounts
 - [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
 - [ ] Ambience audio and monster sound effects
 - [ ] Main menu, microphone calibration screen and a verified release build

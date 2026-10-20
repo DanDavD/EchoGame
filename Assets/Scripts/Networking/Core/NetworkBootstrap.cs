@@ -1,10 +1,11 @@
+using FishNet.Connection;
 using FishNet.Managing;
 using FishNet.Managing.Client;
 using FishNet.Managing.Server;
 using FishNet.Managing.Object;
 using FishNet.Transporting;
-using FishNet.Component.Spawning;
-using Steamworks;
+using FishNet.Transporting.Multipass;
+using FishNet.Transporting.Tugboat;
 using UnityEngine;
 using EchoProtocol.Level;
 using EchoProtocol.Networking.Steam;
@@ -15,8 +16,7 @@ namespace EchoProtocol.Networking.Core
     [RequireComponent(typeof(ServerManager))]
     [RequireComponent(typeof(ClientManager))]
     [RequireComponent(typeof(SteamManager))]
-    [RequireComponent(typeof(SteamLobbyManager))]
-    [RequireComponent(typeof(PlayerSpawner))]
+    [RequireComponent(typeof(MatchPlayerSpawner))]
     public class NetworkBootstrap : MonoBehaviour
     {
         [Header("Prefabs")]
@@ -31,9 +31,16 @@ namespace EchoProtocol.Networking.Core
         [SerializeField] private LaunchMode _autoStart = LaunchMode.None;
 
         private NetworkManager _networkManager;
-        private SteamLobbyManager _lobbyManager;
-        private Transport _steamTransport;
-        private Transport _localTransport;
+        private MatchPlayerSpawner _spawner;
+
+        // Set by the launch flags: start the match as soon as the server is up, skipping the waiting room.
+        private bool _startMatchWhenReady;
+
+        // FishNet initialises only the transport it starts with, so the rig uses Multipass, which initialises both:
+        // Tugboat (UDP, local and LAN play, tests) and FishySteamworks (Steam P2P through the Steam relay).
+        private Multipass _multipass;
+        private Tugboat _tugboat;
+        private FishySteamworks.FishySteamworks _steamTransport;
         private FishNet.Object.NetworkObject _spawnedEnemyInstance;
         private FishNet.Object.NetworkObject _spawnedTeamNoise;
         private readonly System.Collections.Generic.List<FishNet.Object.NetworkObject> _spawnedRelics = new System.Collections.Generic.List<FishNet.Object.NetworkObject>();
@@ -70,10 +77,20 @@ namespace EchoProtocol.Networking.Core
         private void Awake()
         {
             _networkManager = GetComponent<NetworkManager>();
-            _lobbyManager = GetComponent<SteamLobbyManager>();
-            
-            _steamTransport = GetComponent("FishySteamworks") as Transport;
-            _localTransport = GetComponent("Tugboat") as Transport;
+            _spawner = GetComponent<MatchPlayerSpawner>();
+
+            _multipass = GetComponent<Multipass>();
+            _tugboat = GetComponent<Tugboat>();
+            _steamTransport = GetComponent<FishySteamworks.FishySteamworks>();
+            if (_multipass == null)
+            {
+                Debug.LogError("[Bootstrap] The rig has no Multipass transport. Rebuild it: Echo Protocol > Build > Network Rig Prefab.");
+            }
+            else if (_tugboat != null)
+            {
+                // FishNet asks Multipass for a client transport early; give it one so it does not pick one itself.
+                _multipass.SetClientTransport(_tugboat);
+            }
 
 #if UNITY_EDITOR
             EnsurePrefabReferences();
@@ -90,8 +107,7 @@ namespace EchoProtocol.Networking.Core
             {
                 _networkManager.ClientManager.OnClientConnectionState += HandleClientConnectionState;
             }
-            var playerSpawner = GetComponent<PlayerSpawner>();
-            if (playerSpawner != null) playerSpawner.OnSpawned += HandlePlayerSpawned;
+            if (_spawner != null) _spawner.OnSpawned += HandlePlayerSpawned;
 
             _matchFlow = FindAnyObjectByType<EchoProtocol.Extraction.GameExtractionManager>();
             if (_matchFlow != null) _matchFlow.ServerRestarting += ServerRespawnWorld;
@@ -135,8 +151,15 @@ namespace EchoProtocol.Networking.Core
                 address = null;
             }
 
-            if (mode == LaunchMode.Host) StartLocalHost();
-            else if (mode == LaunchMode.Join) JoinLocalClient(address);
+            // The flags are for automation (tests, the photo mode, two-process runs): they skip the waiting room.
+            if (mode == LaunchMode.Host)
+            {
+                if (StartLocalHost()) StartMatchWhenReady();
+            }
+            else if (mode == LaunchMode.Join)
+            {
+                JoinLocalClient(address);
+            }
         }
 
         private void OnDestroy()
@@ -152,8 +175,7 @@ namespace EchoProtocol.Networking.Core
             {
                 _networkManager.ClientManager.OnClientConnectionState -= HandleClientConnectionState;
             }
-            var playerSpawner = GetComponent<PlayerSpawner>();
-            if (playerSpawner != null) playerSpawner.OnSpawned -= HandlePlayerSpawned;
+            if (_spawner != null) _spawner.OnSpawned -= HandlePlayerSpawned;
         }
 
         /// <summary>True while this instance is running the server (host).</summary>
@@ -165,19 +187,62 @@ namespace EchoProtocol.Networking.Core
         /// <summary>True when a server or a client is running.</summary>
         public bool IsNetworkActive => IsHosting || IsClientRunning;
 
+        /// <summary>True on the server once the host has started the match (the waiting room is over).</summary>
+        public bool IsMatchStarted => _spawner != null && _spawner.MatchStarted;
+
+        /// <summary>Connected players waiting for the host to start the match, host included. Server only.</summary>
+        public int PlayersInWaitingRoom => _spawner != null ? _spawner.WaitingCount : 0;
+
+        /// <summary>True on any peer once this peer's own player has spawned, i.e. it is in the match.</summary>
+        public bool HasLocalPlayer
+        {
+            get
+            {
+                var players = PlayerController.ActivePlayers;
+                for (int i = 0; i < players.Count; i++)
+                {
+                    if (players[i] != null && players[i].IsSpawned && players[i].IsOwner) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>Raised on the server when the host starts the match.</summary>
+        public event System.Action MatchStarted;
+
+        /// <summary>
+        /// Server only: leaves the waiting room. Spawns the monster, the relics and one player per connected client.
+        /// Players who connect later (a LAN join) spawn as soon as they arrive.
+        /// </summary>
+        public bool StartMatch()
+        {
+            if (!IsHosting || IsMatchStarted) return false;
+
+            ApplyLevelPlayerSpawns();
+            SpawnWorld();
+            _spawner.BeginMatch();
+            Debug.Log("[Bootstrap] Match started.");
+            MatchStarted?.Invoke();
+            return true;
+        }
+
+        /// <summary>Starts the match now if the server is up, or as soon as it is.</summary>
+        public void StartMatchWhenReady()
+        {
+            if (IsHosting) StartMatch();
+            else _startMatchWhenReady = true;
+        }
+
+        /// <summary>True when this rig can host or join through Steam (the transport is there and Steam is running).</summary>
+        public bool SteamAvailable => _steamTransport != null && SteamManager.Initialized;
+
         /// <summary>Starts a local host (server and client in this process) over the Tugboat transport, no Steam needed.</summary>
         public bool StartLocalHost()
         {
-            if (_networkManager == null || IsNetworkActive) return false;
-            if (_localTransport == null)
-            {
-                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot host locally.");
-                return false;
-            }
+            if (!CanStart(_tugboat, "Tugboat")) return false;
 
-            _networkManager.TransportManager.Transport = _localTransport;
-            bool serverStarted = _networkManager.ServerManager.StartConnection();
-            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            bool serverStarted = StartServerOn(_tugboat);
+            bool clientStarted = serverStarted && StartClientOn(_tugboat, null);
             Debug.Log($"[Bootstrap] Local host started. Server: {serverStarted}, Client: {clientStarted}");
             return serverStarted && clientStarted;
         }
@@ -185,43 +250,107 @@ namespace EchoProtocol.Networking.Core
         /// <summary>Connects to a local host over Tugboat. <paramref name="address"/> defaults to localhost.</summary>
         public bool JoinLocalClient(string address = null)
         {
-            if (_networkManager == null || IsNetworkActive) return false;
-            if (_localTransport == null)
-            {
-                Debug.LogError("[Bootstrap] Tugboat transport not found; cannot join locally.");
-                return false;
-            }
+            if (!CanStart(_tugboat, "Tugboat")) return false;
 
-            _networkManager.TransportManager.Transport = _localTransport;
-            if (!string.IsNullOrWhiteSpace(address)) _localTransport.SetClientAddress(address);
-
-            bool clientStarted = _networkManager.ClientManager.StartConnection();
+            bool clientStarted = StartClientOn(_tugboat, address);
             Debug.Log($"[Bootstrap] Local join started. Client: {clientStarted}");
             return clientStarted;
         }
 
-        /// <summary>Creates a friends-only Steam lobby; the host starts once Steam confirms the lobby.</summary>
-        public void HostSteamLobby()
+        /// <summary>
+        /// Starts a host over Steam (FishySteamworks, peer to peer through the Steam relay). Friends connect to this
+        /// player's SteamID, which the Steam lobby publishes. Steam must be running.
+        /// </summary>
+        public bool StartSteamHost()
         {
-            if (_networkManager == null || IsNetworkActive) return;
-            if (_steamTransport != null) _networkManager.TransportManager.Transport = _steamTransport;
-            _lobbyManager.HostLobby();
+            if (!CanStart(_steamTransport, "FishySteamworks")) return false;
+
+            bool serverStarted = StartServerOn(_steamTransport);
+            bool clientStarted = serverStarted && StartClientOn(_steamTransport, null);
+            Debug.Log($"[Bootstrap] Steam host started. Server: {serverStarted}, Client: {clientStarted}");
+            return serverStarted && clientStarted;
         }
 
-        /// <summary>Stops the server and the client and leaves the Steam lobby, if any.</summary>
+        /// <summary>Connects through Steam to the host whose SteamID64 is <paramref name="hostSteamId"/>.</summary>
+        public bool JoinSteamHost(string hostSteamId)
+        {
+            if (!CanStart(_steamTransport, "FishySteamworks")) return false;
+            if (string.IsNullOrWhiteSpace(hostSteamId)) return false;
+
+            bool clientStarted = StartClientOn(_steamTransport, hostSteamId);
+            Debug.Log($"[Bootstrap] Steam join started (host {hostSteamId}). Client: {clientStarted}");
+            return clientStarted;
+        }
+
+        /// <summary>Stops the server and the client. Leaving a Steam lobby is the caller's job.</summary>
         public void Disconnect()
         {
             if (_networkManager == null) return;
 
             ForgetWorld();
-            if (_networkManager.IsServerStarted) _networkManager.ServerManager.StopConnection(true);
+            _startMatchWhenReady = false;
+            StopServer();
             if (_networkManager.IsClientStarted) _networkManager.ClientManager.StopConnection();
-            if (_lobbyManager != null) _lobbyManager.LeaveLobby();
+        }
+
+        private bool CanStart(Transport transport, string transportName)
+        {
+            if (_networkManager == null || _multipass == null || IsNetworkActive) return false;
+            if (transport == null)
+            {
+                Debug.LogError($"[Bootstrap] The rig has no {transportName} transport. Rebuild it: Echo Protocol > Build > Network Rig Prefab.");
+                return false;
+            }
+            return true;
+        }
+
+        // Multipass runs with GlobalServerActions off, so only the chosen transport opens a server (a Steam host does not
+        // also open a UDP port, and a local host does not need Steam). ServerManager.StartConnection would ask Multipass to
+        // start every transport, so the server is started per transport here.
+        private bool StartServerOn(Transport transport)
+        {
+            int index = TransportIndex(transport);
+            return index >= 0 && _multipass.StartConnection(true, index);
+        }
+
+        private bool StartClientOn(Transport transport, string address)
+        {
+            _multipass.SetClientTransport(transport);
+            if (!string.IsNullOrWhiteSpace(address)) transport.SetClientAddress(address);
+            return _networkManager.ClientManager.StartConnection();
+        }
+
+        private void StopServer()
+        {
+            if (_multipass == null || !_networkManager.IsServerStarted) return;
+
+            // What ServerManager.StopConnection(true) does, minus the call Multipass refuses without GlobalServerActions.
+            var clients = new System.Collections.Generic.List<NetworkConnection>(_networkManager.ServerManager.Clients.Values);
+            if (clients.Count > 0) _networkManager.ServerManager.SendDisconnectMessages(clients, true);
+
+            for (int i = 0; i < _multipass.Transports.Count; i++)
+            {
+                if (_multipass.Transports[i].GetConnectionState(true) != LocalConnectionState.Stopped)
+                {
+                    _multipass.StopConnection(true, i);
+                }
+            }
+        }
+
+        private int TransportIndex(Transport transport)
+        {
+            for (int i = 0; i < _multipass.Transports.Count; i++)
+            {
+                if (_multipass.Transports[i] == transport) return i;
+            }
+            Debug.LogError($"[Bootstrap] {transport.GetType().Name} is not one of the Multipass transports. Rebuild the rig.");
+            return -1;
         }
 
         private void Update()
         {
-            if (_networkManager != null && _networkManager.IsServerStarted && !_worldSpawned)
+            // After a restart the world is despawned; spawn it again once the match is running.
+            if (_networkManager != null && _networkManager.IsServerStarted && IsMatchStarted && !_worldSpawned)
             {
                 SpawnWorld();
             }
@@ -231,12 +360,18 @@ namespace EchoProtocol.Networking.Core
         {
             if (args.ConnectionState == LocalConnectionState.Started)
             {
+                // The server opens the waiting room: the world and the players spawn when the host starts the match.
                 ApplyLevelPlayerSpawns();
-                SpawnWorld();
+                if (_startMatchWhenReady)
+                {
+                    _startMatchWhenReady = false;
+                    StartMatch();
+                }
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
                 ForgetWorld();
+                _startMatchWhenReady = false;
             }
         }
 
@@ -367,13 +502,7 @@ namespace EchoProtocol.Networking.Core
 #if UNITY_EDITOR
             EnsurePrefabReferences();
 #endif
-            var spawner = GetComponent<PlayerSpawner>();
-            FishNet.Object.NetworkObject playerPrefab = null;
-            if (spawner != null)
-            {
-                var fi = typeof(PlayerSpawner).GetField("_playerPrefab", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                playerPrefab = fi?.GetValue(spawner) as FishNet.Object.NetworkObject;
-            }
+            FishNet.Object.NetworkObject playerPrefab = _spawner != null ? _spawner.PlayerPrefab : null;
 
 #if UNITY_EDITOR
             if (playerPrefab == null)
@@ -444,7 +573,7 @@ namespace EchoProtocol.Networking.Core
         /// <summary>Points the player spawner at the level's player spawn points (resolved once the scene is loaded).</summary>
         private void ApplyLevelPlayerSpawns()
         {
-            var spawner = GetComponent<PlayerSpawner>();
+            var spawner = GetComponent<MatchPlayerSpawner>();
             var points = SpawnRegistry.Get(SpawnKind.Player);
             if (spawner == null || points.Count == 0) return;
 
@@ -455,7 +584,7 @@ namespace EchoProtocol.Networking.Core
 
         private void SetupSpawnPoints()
         {
-            var spawner = GetComponent<PlayerSpawner>();
+            var spawner = GetComponent<MatchPlayerSpawner>();
             if (spawner != null && (spawner.Spawns == null || spawner.Spawns.Length == 0))
             {
                 var s1 = new GameObject("SpawnPoint_1").transform;
@@ -470,58 +599,6 @@ namespace EchoProtocol.Networking.Core
 
                 spawner.Spawns = new Transform[] { s1, s2 };
             }
-        }
-
-        private void OnGUI()
-        {
-            if (_networkManager == null) return;
-
-            // Before connecting this panel is the way in; once connected it is just a debug readout.
-            if (IsNetworkActive && !DebugOverlay.Visible) return;
-
-            GUILayout.BeginArea(new Rect(10, 10, 300, 400));
-            
-            GUIStyle headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-
-            GUILayout.Label("--- Echo Protocol Networking ---", headerStyle);
-
-            if (SteamManager.Initialized)
-            {
-                GUILayout.Label($"Steam Status: Online ({SteamFriends.GetPersonaName()})");
-            }
-            else
-            {
-                GUILayout.Label("Steam Status: Offline / Not Initialized");
-            }
-
-            GUILayout.Space(10);
-
-            if (!_networkManager.IsServerStarted && !_networkManager.IsClientStarted)
-            {
-                if (GUILayout.Button("Host Steam Lobby (Friends Only)")) HostSteamLobby();
-
-                GUILayout.Space(10);
-                GUILayout.Label("-- Offline / LAN Testing --");
-
-                if (GUILayout.Button("Host Local (No Steam)")) StartLocalHost();
-                if (GUILayout.Button("Join Local Client")) JoinLocalClient();
-            }
-            else
-            {
-                if (_networkManager.IsServerStarted) GUILayout.Label("[HOST] Server is running");
-                if (_networkManager.IsClientStarted) GUILayout.Label("[CLIENT] Connected");
-
-                if (_lobbyManager.CurrentLobbyID.IsValid())
-                {
-                    GUILayout.Label($"Lobby ID: {_lobbyManager.CurrentLobbyID}");
-                }
-
-                GUILayout.Space(5);
-
-                if (GUILayout.Button("Disconnect")) Disconnect();
-            }
-            
-            GUILayout.EndArea();
         }
     }
 }
