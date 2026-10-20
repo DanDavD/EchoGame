@@ -27,6 +27,16 @@ namespace EchoProtocol.Relics
         private Coroutine _typewriterCoroutine;
         private RelicVoiceSynthesizer _voiceSynthesizer;
 
+        // Every relic draws its card in the same place at the bottom of the screen, so only the relic that spoke last
+        // owns it. The others keep their speech bubble in the world, so players still see who is talking.
+        private static RelicDialogueUI _screenCardOwner;
+
+        /// <summary>True when this relic's line is the one shown on the screen card.</summary>
+        public bool OwnsScreenCard => _screenCardOwner == this;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => _screenCardOwner = null;
+
         // Custom GUI textures
         private Texture2D _whiteTex;
         private Texture2D _darkTex;
@@ -46,6 +56,12 @@ namespace EchoProtocol.Relics
         {
             if (_whiteTex != null) Destroy(_whiteTex);
             if (_darkTex != null) Destroy(_darkTex);
+            ReleaseScreenCard();
+        }
+
+        private void ReleaseScreenCard()
+        {
+            if (_screenCardOwner == this) _screenCardOwner = null;
         }
 
         /// <summary>
@@ -56,6 +72,7 @@ namespace EchoProtocol.Relics
             _currentPersonality = personality;
             _targetLine = line;
             _voiceSynthesizer = voice;
+            _screenCardOwner = this;
 
             if (_typewriterCoroutine != null)
             {
@@ -80,6 +97,7 @@ namespace EchoProtocol.Relics
             _targetLine = "";
             _currentVisibleText = "";
             _fadeAlpha = 0f;
+            ReleaseScreenCard();
         }
 
         private IEnumerator TypewriterRoutine()
@@ -133,6 +151,7 @@ namespace EchoProtocol.Relics
             _fadeAlpha = 0f;
             _isDisplaying = false;
             _typewriterCoroutine = null;
+            ReleaseScreenCard();
         }
 
         private void OnGUI()
@@ -146,7 +165,7 @@ namespace EchoProtocol.Relics
             Color bgColor = profile.BackgroundColor;
             bgColor.a *= _fadeAlpha;
 
-            DrawScreenHudCard(profile, accentColor, bgColor);
+            if (OwnsScreenCard) DrawScreenHudCard(profile, accentColor, bgColor);
             Draw3DWorldSpeechBubble(profile, accentColor, bgColor);
         }
 
