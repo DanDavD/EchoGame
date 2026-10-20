@@ -8,6 +8,8 @@ The cave is pitch black. Hold `V` and whisper, and you see a few metres. Hold `V
 ![Render Pipeline](https://img.shields.io/badge/URP-17.6-blue)
 ![Status](https://img.shields.io/badge/status-prototype-orange)
 
+**Play it:** download the Windows build from the [latest release](https://github.com/DanDavD/EchoGame/releases/latest), unzip it and run `EchoProtocol.exe`. You need a microphone. For online co-op, both players need Steam running and must be friends on Steam. On the same network you can also use *Host Local* and *Join IP*.
+
 ---
 
 ## The idea
@@ -62,7 +64,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** a Steam test between two PCs, ambience audio, a retro low-resolution look, a settings and microphone calibration screen, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
+**Still to do:** ambience audio, a retro low-resolution look, a settings and microphone calibration screen, and proximity voice chat. See the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -162,10 +164,11 @@ Assets/
 - [x] Procedural look, post-processing, animated monster and photo mode
 - [x] Steam lobby code (friends-only lobbies, invites)
 - [x] Steam transport wired (Multipass), waiting room, multiplayer menus and clear connection errors
-- [ ] Steam co-op verified between two Steam accounts
+- [x] Steam co-op verified between two PCs with two Steam accounts
+- [x] First public release (v0.1.0): Windows build on GitHub Releases
 - [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
 - [ ] Ambience audio and monster sound effects
-- [ ] Main menu, microphone calibration screen and a verified release build
+- [ ] Settings and microphone calibration screen
 - [ ] Proximity voice chat (Steam Voice or Dissonance, not decided yet)
 
 ## Author
