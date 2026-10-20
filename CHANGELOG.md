@@ -5,6 +5,9 @@ Versions follow loose semantic versioning while the game is a prototype (see [CO
 
 ## [Unreleased]
 
+### Fixed
+- **Relic subtitles drawn on top of each other** (`RelicDialogueUI.cs`): every relic drew its subtitle card in the same place, so two relics talking at once overlapped into unreadable text. Only the relic that spoke last now owns the card at the bottom of the screen; the others keep their speech bubble above them in the world. Covered by `RelicDialogueUITests`.
+
 ## [0.1.0] - 2026-10-20
 
 The first public build: the full co-op loop (find the relics, dock them in the altar, survive the symphony, escape) over Steam or LAN, with the procedural look, push-to-talk echo and the team noise meter.
