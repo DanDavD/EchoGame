@@ -1,9 +1,13 @@
 # Changelog
 
 This file lists the notable changes to the project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-I have not tagged a release yet, so everything is under Unreleased.
+Versions follow loose semantic versioning while the game is a prototype (see [CONTRIBUTING](CONTRIBUTING.md#releases)).
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-10-20
+
+The first public build: the full co-op loop (find the relics, dock them in the altar, survive the symphony, escape) over Steam or LAN, with the procedural look, push-to-talk echo and the team noise meter.
 
 ### Added
 - **Push-to-talk echo (`V`)**: the voice only lights the cave while the new `Echo` input action is held; plain voice chat reveals nothing. The monster hears chat at 0.6 and an echo at 1.25 of the voice level (`VoiceNoiseEmitter.Weigh`), and the echo flag is replicated so the server weighs remote voices correctly.
@@ -115,6 +119,8 @@ I have not tagged a release yet, so everything is under Unreleased.
 
 ### Fixed
 
+- **Compiler warnings in release builds** (`TeamNoiseDirector.cs`): the debug noise and debug cry RPCs no longer produce "unreachable code" warnings.
+- **Microphone calibrator documentation** (`MicrophoneCalibrator.cs`): the XML comments are back.
 - **Steam co-op never used Steam** (`NetworkRigBuilder.cs`, `NetworkBootstrap.cs`): the rig only had Tugboat, so a Steam lobby hosted over UDP and the friend tried to reach a SteamID through Tugboat. Assigning another transport at runtime does not work either, because Fish-Net initialises only the transport it starts with. The rig now uses Multipass with Tugboat and FishySteamworks (peer to peer, 4 players) and opens the server only on the transport of the session.
 - **Joining a Steam lobby ignored Steam's answer**: a full, closed or banned lobby still tried to connect, the build version was never checked, and a player stayed in the lobby after the host left. All of these now end in a clear message.
 

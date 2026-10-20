@@ -752,13 +752,17 @@ namespace EchoProtocol.Rituals
         [ServerRpc(RequireOwnership = false)]
         private void ServerDebugNoise()
         {
-            if (DebugKeys.Enabled) AddNoise(0.35f);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            AddNoise(0.35f);
+#endif
         }
 
         [ServerRpc(RequireOwnership = false)]
         private void ServerDebugCry()
         {
-            if (DebugKeys.Enabled) DebugMakeNearestRelicCry();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            DebugMakeNearestRelicCry();
+#endif
         }
 
         private void DebugMakeNearestRelicCry()
