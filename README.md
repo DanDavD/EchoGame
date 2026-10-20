@@ -55,14 +55,14 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - Sensitive relics: they cry when the carrier is too loud, when they land hard, or when nobody passes them around; players hand them over with `E`. A crying relic is calmed with the human echo ritual, a rhythm the team repeats with their voices, checked by rhythm only.
 - Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
 - A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
-- Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs locally over Tugboat. Steam lobbies exist, but the Steam transport is not wired yet (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
+- Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs over LAN (Tugboat) and over Steam (friends-only lobbies, invites and the Steam relay), with a waiting room and multiplayer menus. LAN play is covered by automated tests; Steam needs two accounts, so I test it by hand (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
 - Living relics: carryable, talking relics with procedural voices, jokes, and reactions to the microphone, sprinting and the monster.
 - The altar, the symphony choir and the escape portal. This gives a full loop from objective to extraction to victory or defeat. The server decides it in multiplayer, and it also runs offline in the sandbox (see [networking](docs/NETWORKING.md)).
 - A catacombs level generated from a text map, with a validator and tests.
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** ambience audio, a retro low-resolution look, a main menu, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
+**Still to do:** a Steam test between two PCs, ambience audio, a retro low-resolution look, a settings and microphone calibration screen, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
 
 ## Tech stack
 
