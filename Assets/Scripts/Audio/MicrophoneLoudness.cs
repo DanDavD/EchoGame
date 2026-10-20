@@ -59,6 +59,11 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     /// <summary>Smoothed, calibrated loudness 0..1.</summary>
     public float Level01 { get; private set; }
+    /// <summary>
+    /// Calibrated loudness 0..1 of the newest ~32 ms window, before the attack/release smoothing. The smoothing makes
+    /// short syllables blur together, so rhythm detection (the relic rituals) reads this instead.
+    /// </summary>
+    public float RawLevel01 => _clip != null ? _lastMicTarget : 0f;
     /// <summary>Current loudness bucket.</summary>
     public VoiceLoudness State { get; private set; } = VoiceLoudness.Silent;
     /// <summary>Instantaneous (unsmoothed) loudness in dB. Useful for calibration.</summary>
@@ -80,7 +85,6 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private float[] _buffer;
     private bool _calibrating;
     private MicrophoneCalibrator _calibrator = new MicrophoneCalibrator();
-    private float _debugBurstTimer;
     private float _lastMicTarget;
 
     // A microphone device is a process-wide resource. Remote avatars carry this component too (it is disabled
@@ -156,21 +160,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 
     private void Update()
     {
-        // Single tap burst on V key: emits sound for 0.25s then fades back to silence
-        if (DebugKeys.WasPressed(UnityEngine.InputSystem.Key.V))
-        {
-            _debugBurstTimer = 0.25f;
-        }
-
-        float burstTarget = 0f;
-        if (_debugBurstTimer > 0f)
-        {
-            _debugBurstTimer -= Time.deltaTime;
-            burstTarget = 1f;
-        }
-
-        float micTarget = (_clip != null) ? ReadTargetLevel() : 0f;
-        float target = Mathf.Max(micTarget, burstTarget);
+        // V is the push-to-talk echo key now (see EchoVisionController), so it no longer fakes a voice burst.
+        float target = (_clip != null) ? ReadTargetLevel() : 0f;
 
         // Fast attack / slow release so shouts register instantly but light fades out naturally.
         float speed = target > Level01 ? _attackSpeed : _releaseSpeed;

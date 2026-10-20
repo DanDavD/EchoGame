@@ -22,6 +22,8 @@ namespace EchoProtocol.Networking.Core
         [Header("Prefabs")]
         [SerializeField] private FishNet.Object.NetworkObject _enemyPrefab;
         [SerializeField] private FishNet.Object.NetworkObject _relicPrefab;
+        [Tooltip("The team noise meter and relic rituals (TeamNoiseDirector), one per match.")]
+        [SerializeField] private FishNet.Object.NetworkObject _teamNoisePrefab;
 
         [Header("Startup")]
         [Tooltip("What to do as soon as the scene starts. The -echo-host / -echo-join command-line flags override it. " +
@@ -40,6 +42,7 @@ namespace EchoProtocol.Networking.Core
         private Tugboat _tugboat;
         private FishySteamworks.FishySteamworks _steamTransport;
         private FishNet.Object.NetworkObject _spawnedEnemyInstance;
+        private FishNet.Object.NetworkObject _spawnedTeamNoise;
         private readonly System.Collections.Generic.List<FishNet.Object.NetworkObject> _spawnedRelics = new System.Collections.Generic.List<FishNet.Object.NetworkObject>();
 
         // True once the server has spawned the monster and the relics for the current match.
@@ -63,6 +66,10 @@ namespace EchoProtocol.Networking.Core
             if (_relicPrefab == null)
             {
                 _relicPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/Relic_Test.prefab");
+            }
+            if (_teamNoisePrefab == null)
+            {
+                _teamNoisePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<FishNet.Object.NetworkObject>("Assets/Prefabs/TeamNoiseDirector.prefab");
             }
         }
 #endif
@@ -372,16 +379,36 @@ namespace EchoProtocol.Networking.Core
         private void ForgetWorld()
         {
             _spawnedEnemyInstance = null;
+            _spawnedTeamNoise = null;
             _spawnedRelics.Clear();
             _worldSpawned = false;
         }
 
-        /// <summary>The monster and one relic per shrine, spawned by the server at the level's markers.</summary>
+        /// <summary>The monster, one relic per shrine and the team noise director, spawned by the server.</summary>
         private void SpawnWorld()
         {
             SpawnNetworkedEnemy();
             SpawnNetworkedRelics();
+            SpawnTeamNoiseDirector();
             _worldSpawned = true;
+        }
+
+        /// <summary>One team noise meter per match, so a restart (which respawns the world) also empties it.</summary>
+        private void SpawnTeamNoiseDirector()
+        {
+            if (_networkManager == null || !_networkManager.IsServerStarted || _spawnedTeamNoise != null) return;
+
+#if UNITY_EDITOR
+            EnsurePrefabReferences();
+#endif
+            if (_teamNoisePrefab == null)
+            {
+                Debug.LogWarning("[NetworkBootstrap] TeamNoiseDirector prefab is null! The match runs without the team noise meter and rituals.");
+                return;
+            }
+
+            _spawnedTeamNoise = Instantiate(_teamNoisePrefab);
+            _networkManager.ServerManager.Spawn(_spawnedTeamNoise);
         }
 
         /// <summary>
@@ -393,6 +420,7 @@ namespace EchoProtocol.Networking.Core
             if (!IsHosting) return;
 
             if (_spawnedEnemyInstance != null) _networkManager.ServerManager.Despawn(_spawnedEnemyInstance);
+            if (_spawnedTeamNoise != null) _networkManager.ServerManager.Despawn(_spawnedTeamNoise);
             foreach (FishNet.Object.NetworkObject relic in _spawnedRelics)
             {
                 if (relic != null) _networkManager.ServerManager.Despawn(relic);
@@ -497,6 +525,12 @@ namespace EchoProtocol.Networking.Core
                     needsFix = true;
                 }
 
+                // A collection built before the team noise director existed cannot spawn it: rebuild it with it.
+                if (!needsFix && _teamNoisePrefab != null && !ContainsPrefab(_networkManager.SpawnablePrefabs, _teamNoisePrefab))
+                {
+                    needsFix = true;
+                }
+
                 if (needsFix)
                 {
                     SinglePrefabObjects spo = ScriptableObject.CreateInstance<SinglePrefabObjects>();
@@ -509,10 +543,24 @@ namespace EchoProtocol.Networking.Core
                     {
                         spo.AddObject(_relicPrefab, false, true);
                     }
+                    if (_teamNoisePrefab != null)
+                    {
+                        spo.AddObject(_teamNoisePrefab, false, true);
+                    }
                     _networkManager.SpawnablePrefabs = spo;
-                    Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy + Relic)!");
+                    Debug.Log($"<color=green>[NetworkBootstrap]</color> Dynamic runtime fix: {spo.GetObjectCount()} prefabs bound to SpawnablePrefabs (Player + Enemy + Relic + TeamNoise)!");
                 }
             }
+        }
+
+        private static bool ContainsPrefab(PrefabObjects collection, FishNet.Object.NetworkObject prefab)
+        {
+            int count = collection.GetObjectCount();
+            for (int i = 0; i < count; i++)
+            {
+                if (collection.GetObject(true, i) == prefab) return true;
+            }
+            return false;
         }
 
         /// <summary>Position of the first level spawn point of <paramref name="kind"/>, or <paramref name="fallback"/> when the level has none.</summary>

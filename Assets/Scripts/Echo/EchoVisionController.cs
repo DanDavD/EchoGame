@@ -5,6 +5,8 @@ using UnityEngine;
 
 /// <summary>
 /// Turns a player's voice loudness into a growing sphere of light (networked).
+///   * Push to talk: the voice only lights the cave while the player holds the echo key (V). Talking without it is
+///     plain voice chat: it still makes noise for the monster and the team meter, but reveals nothing.
 ///   * The OWNER reads its own microphone, computes the radius and writes it to a SyncVar.
 ///   * Every OTHER client receives that radius and smooths towards it, so all players see
 ///     everyone else's echo. The sphere centre follows the player's NetworkTransform.
@@ -14,6 +16,10 @@ using UnityEngine;
 /// </summary>
 public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
 {
+    [Header("Push to talk")]
+    [Tooltip("When on, the voice only lights the cave while the echo key (V) is held. Off = the old always-on echo.")]
+    [SerializeField] private bool _pushToTalk = true;
+
     [Header("Source")]
     [Tooltip("Any component implementing IVoiceLevelSource (e.g. MicrophoneLoudness). " +
              "If empty, it is searched on this GameObject.")]
@@ -56,7 +62,10 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
 
     /// <summary>Radius (m) replicated from the owner to all observers.</summary>
     private readonly SyncVar<float> _syncedRadius = new SyncVar<float>();
+    /// <summary>Whether the owner holds the echo key, replicated so the server weighs the noise and peers can show it.</summary>
+    private readonly SyncVar<bool> _syncedEchoing = new SyncVar<bool>();
     private float _lastSentRadius = -1f;
+    private bool _lastSentEchoing;
     private float _lastSentTime;
     private float _networkedLoudness;
 
@@ -70,6 +79,14 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
         }
     }
 
+    /// <summary>
+    /// True while this player is echoing (holding the push-to-talk key, or always when push to talk is off).
+    /// On the owner it reads the key; on every other peer it is the replicated value.
+    /// </summary>
+    public bool IsEchoing => IsLocalSource ? LocalEchoHeld : _syncedEchoing.Value;
+
+    private bool LocalEchoHeld => !_pushToTalk || _player == null || _player.IsEchoHeld;
+
     /// <summary>Current radius of the revealed sphere (metres). Useful for gameplay/debug.</summary>
     public float CurrentRadius => _currentRadius;
     /// <summary>World-space centre of the sphere.</summary>
@@ -81,6 +98,7 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     private const float FalloffVisualScale = 0.7f;
 
     private IVoiceLevelSource _source;
+    private PlayerController _player;
     private float _currentRadius;
     private float _radiusVelocity;
     private float _forcedRadius = -1f;
@@ -107,6 +125,15 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     }
 
     /// <summary>
+    /// Push-to-talk version of <see cref="TargetRadius(float, float, float, float, AnimationCurve)"/>: nothing is revealed
+    /// unless <paramref name="echoHeld"/>, whatever the voice level.
+    /// </summary>
+    public static float TargetRadius(float level, float sensitivity, float noiseGate, float maxRadius, AnimationCurve curve, bool echoHeld)
+    {
+        return echoHeld ? TargetRadius(level, sensitivity, noiseGate, maxRadius, curve) : 0f;
+    }
+
+    /// <summary>
     /// Makes the local sphere aim for <paramref name="radius"/> metres whatever the microphone says. Used by the photo mode
     /// and demos; pass a negative value to hand control back to the voice.
     /// </summary>
@@ -122,6 +149,7 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     {
         _source = _voiceSource as IVoiceLevelSource;
         if (_source == null) _source = GetComponent<IVoiceLevelSource>();
+        _player = GetComponent<PlayerController>();
 
         if (_source == null)
             Debug.LogError("[EchoVisionController] No IVoiceLevelSource found. Add MicrophoneLoudness.", this);
@@ -143,6 +171,7 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     {
         base.OnStartNetwork();
         _syncedRadius.UpdateSendRate(_syncSendRate);
+        _syncedEchoing.UpdateSendRate(0f);
     }
 
     public override void OnStartClient()
@@ -185,9 +214,10 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
         if (_source == null) return;
 
         float level = _source.Level01;
+        bool echoing = LocalEchoHeld;
         float targetRadius = _forcedRadius >= 0f
             ? _forcedRadius
-            : TargetRadius(level, _voiceSensitivity, _noiseGate, _maxRadius, _radiusCurve);
+            : TargetRadius(level, _voiceSensitivity, _noiseGate, _maxRadius, _radiusCurve, echoing);
 
         float smoothTime = targetRadius > _currentRadius ? _growSmoothTime : _shrinkSmoothTime;
         _currentRadius = Mathf.SmoothDamp(_currentRadius, targetRadius, ref _radiusVelocity, smoothTime);
@@ -198,28 +228,32 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
             float q = Quantize(_currentRadius);
             bool radiusChanged = Mathf.Abs(_lastSentRadius - q) > 0.05f;
             bool periodicLoudness = level > _noiseGate && Time.time - _lastSentTime > 0.15f;
+            bool echoChanged = echoing != _lastSentEchoing;
 
-            if (radiusChanged || periodicLoudness)
+            if (radiusChanged || periodicLoudness || echoChanged)
             {
                 _lastSentRadius = q;
                 _lastSentTime = Time.time;
+                _lastSentEchoing = echoing;
                 if (IsServerStarted)
                 {
                     _syncedRadius.Value = q;
+                    _syncedEchoing.Value = echoing;
                     _networkedLoudness = level;
                 }
                 else
                 {
-                    ServerSetRadius(q, level);
+                    ServerSetRadius(q, level, echoing);
                 }
             }
         }
     }
 
     [ServerRpc]
-    private void ServerSetRadius(float radius, float loudness)
+    private void ServerSetRadius(float radius, float loudness, bool echoing)
     {
         _syncedRadius.Value = radius;
+        _syncedEchoing.Value = echoing;
         _networkedLoudness = loudness;
     }
 

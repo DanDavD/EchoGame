@@ -82,6 +82,7 @@ namespace EchoProtocol.EditorTools
                 Assign(root.GetComponent<MatchPlayerSpawner>(), "_playerPrefab", player);
                 Assign(root.GetComponent<NetworkBootstrap>(), "_enemyPrefab", enemy);
                 Assign(root.GetComponent<NetworkBootstrap>(), "_relicPrefab", relic);
+                Assign(root.GetComponent<NetworkBootstrap>(), "_teamNoisePrefab", TeamNoisePrefabBuilder.EnsurePrefab());
 
                 Directory.CreateDirectory(Path.GetDirectoryName(PrefabPath));
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
