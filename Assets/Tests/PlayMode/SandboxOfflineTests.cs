@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Linq;
 using EchoProtocol.Relics;
-using EchoProtocol.Rituals;
+using EchoProtocol.TeamNoise;
 using FishNet.Managing;
 using NUnit.Framework;
 using UnityEngine;
@@ -83,45 +83,57 @@ namespace EchoProtocol.Tests
         }
 
         [UnityTest]
-        public IEnumerator Sandbox_EchoingTheRhythm_SoothesACryingRelic()
+        public IEnumerator AfterACatch_TheMonsterWalksAway_AndLeavesItsVictimAlone()
         {
-            yield return NetTestUtil.WaitUntil(() => TeamNoiseDirector.Instance != null, "the offline team noise director");
-            yield return NetTestUtil.WaitUntil(() => Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude).Length == 3, "three local relics");
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            var brain = Object.FindAnyObjectByType<EnemyBrain>();
+            Assert.IsNotNull(player);
+            Assert.IsNotNull(brain);
 
-            TeamNoiseDirector director = TeamNoiseDirector.Instance;
-            PlayerController player = Object.FindAnyObjectByType<PlayerController>();
-            RelicBrain relic = Object.FindObjectsByType<RelicBrain>(FindObjectsInactive.Exclude)[0];
+            // A silent player: the real microphone of the test PC must not call the monster.
+            var microphone = player.GetComponent<MicrophoneLoudness>();
+            if (microphone != null) microphone.enabled = false;
 
-            var controller = player.GetComponent<CharacterController>();
-            controller.enabled = false;
-            player.transform.position = relic.transform.position + new Vector3(1.5f, 0.5f, 0f);
-            controller.enabled = true;
+            int catches = 0;
+            brain.OnPlayerCaught += _ => catches++;
+
+            // Put the monster right next to the player.
+            var agent = brain.GetComponent<NavMeshAgent>();
+            Vector3 victim = player.transform.position;
+            agent.Warp(victim + player.transform.forward * 1.2f);
+            yield return NetTestUtil.WaitUntil(() => catches > 0, "the monster to catch the player", 5f);
+
+            // Gloating (3 s), then the retreat: sated, deaf, walking away.
+            yield return NetTestUtil.WaitUntil(() => brain.IsSated, "the monster to become sated after its gloat", 6f);
+            Assert.AreEqual(EnemyState.Idle, brain.State, "a sated monster is not hunting");
+
+            float end = Time.time + 4f;
+            while (Time.time < end) yield return null;
+
+            Vector3 offset = brain.transform.position - victim;
+            offset.y = 0f;
+            Assert.Greater(offset.magnitude, 6f, "it walked away from where it caught the player");
+            Assert.AreEqual(1, catches, "the victim is not caught again while it gets up");
+        }
+
+        [UnityTest]
+        public IEnumerator DestroyingAPlayer_DisablesAndDestroysItsInputCopy()
+        {
+            // A player's enabled input copy that outlives it makes the Input System throw on every key press
+            // (worst with domain reload off, where it survives into the next Play).
+            var player = Object.FindAnyObjectByType<PlayerController>();
+            Assert.IsNotNull(player);
+            var field = typeof(PlayerController).GetField("_inputActions",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            // An InputActionAsset (read as its base type: this test assembly does not reference the Input System).
+            var copy = field.GetValue(player) as ScriptableObject;
+            Assert.IsNotNull(copy);
+            Assert.IsTrue((bool)copy.GetType().GetProperty("enabled").GetValue(copy), "the local player's controls are on during play");
+
+            Object.Destroy(player.gameObject);
             yield return null;
 
-            director.AddNoise(0.5f);
-            float fillBefore = director.Fill01;
-
-            relic.StartCrying();
-            yield return NetTestUtil.WaitUntil(() => director.Phase == RitualPhase.Turn && director.IsLocalTurn, "the player's turn to echo", 10f);
-
-            // Say "ba" on every beat, 0.2 s after the turn starts, each syllable 0.12 s long.
-            var pattern = director.RitualPattern.ToArray();
-            director.VoiceLevelOverride = () =>
-            {
-                float t = director.PhaseElapsed - 0.2f;
-                foreach (float beat in pattern)
-                {
-                    if (t >= beat && t < beat + 0.12f) return 0.7f;
-                }
-                return 0f;
-            };
-
-            yield return NetTestUtil.WaitUntil(() => director.Phase == RitualPhase.Result, "the echo to be judged", 10f);
-            director.VoiceLevelOverride = null;
-
-            Assert.IsTrue(director.LastRoundSucceeded, "the same rhythm, in any voice, is a right echo");
-            Assert.IsFalse(relic.IsCrying, "a right echo soothes the relic");
-            Assert.Less(director.Fill01, fillBefore, "soothing a relic takes team noise off");
+            Assert.IsTrue(copy == null, "the player's input copy is destroyed with it");
         }
     }
 }

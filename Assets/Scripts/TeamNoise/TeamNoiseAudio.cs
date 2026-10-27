@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace EchoProtocol.Rituals
+namespace EchoProtocol.TeamNoise
 {
     /// <summary>
     /// The music of the team noise meter, made at runtime with no audio assets: a low drone that swells as the team gets
@@ -48,13 +48,15 @@ namespace EchoProtocol.Rituals
 
             bool alarmed = _director.IsAlarmed;
             float step = Time.deltaTime / Mathf.Max(0.01f, _fadeSeconds);
+            // The "Ambience and music" setting scales the music too (the master volume scales everything).
+            float music = EchoProtocol.Settings.SettingsManager.Current.AmbienceVolume;
 
-            float alarmTarget = alarmed ? _alarmVolume : 0f;
+            float alarmTarget = alarmed ? _alarmVolume * music : 0f;
             _alarm.volume = Mathf.MoveTowards(_alarm.volume, alarmTarget, step * _alarmVolume);
 
             // The drone grows with the square of the meter: barely there at half, unsettling near the top.
             float fill = _director.Fill01;
-            float tensionTarget = alarmed ? 0f : _tensionVolume * fill * fill;
+            float tensionTarget = alarmed ? 0f : _tensionVolume * fill * fill * music;
             _tension.volume = Mathf.MoveTowards(_tension.volume, tensionTarget, step * _tensionVolume);
         }
 

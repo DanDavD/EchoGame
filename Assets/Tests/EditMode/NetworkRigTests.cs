@@ -99,9 +99,9 @@ namespace EchoProtocol.Tests
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TeamNoisePrefabBuilder.PrefabPath);
             Assert.IsNotNull(prefab, "the TeamNoiseDirector prefab must exist");
             Assert.IsNotNull(prefab.GetComponent<NetworkObject>(), "it is spawned over the network");
-            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseDirector>(), "director");
-            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseHud>(), "HUD");
-            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.Rituals.TeamNoiseAudio>(), "music");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.TeamNoise.TeamNoiseDirector>(), "director");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.TeamNoise.TeamNoiseHud>(), "HUD");
+            Assert.IsNotNull(prefab.GetComponent<EchoProtocol.TeamNoise.TeamNoiseAudio>(), "music");
         }
 
         [Test]

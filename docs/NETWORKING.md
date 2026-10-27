@@ -122,8 +122,8 @@ These are known gaps that I plan to fix in the networking pass of the release br
 - **The dock range is the only altar check.** The server checks that the player carries the relic, that the socket is free and that the player is within 6 m. It does not check line of sight or the interaction cooldown.
 - **Sensing a remote carrier.** `RelicBrain` reads the carrier's sprint state from `PlayerController`, which only runs on the owner. For a remote carrier the server sees no sprint, so only the microphone and monster reactions work.
 - **Remote ragdoll state.** The server cannot tell whether a remote player is ragdolling or immune (see [Enemy AI](ENEMY_AI.md#known-limitations)).
-- **Debug keys** (`H`, `J`, `M`, `T`, `Y`, `N`, `B` and the debug ragdoll) only exist in the Editor and in Development builds. Most act locally; `N` (team noise) and `B` (make a relic cry) ask the server.
-- **Team noise and rituals:** a `TeamNoiseDirector` prefab is spawned by the server with the monster and the relics, when the host starts the match. It replicates the meter and the alarm through `SyncVar`s and runs the human echo ritual through observers RPCs; each player's echo is timed on their own client and only the syllable times reach the server. See [Team noise and relic rituals](TEAM_NOISE_AND_RITUALS.md).
+- **Debug keys** (`H`, `J`, `M`, `T`, `Y`, `N` and the debug ragdoll) only exist in the Editor and in Development builds. Most act locally; `N` (team noise) asks the server.
+- **Team noise:** a `TeamNoiseDirector` prefab is spawned by the server with the monster and the relics, when the host starts the match. It replicates the meter and the alarm through `SyncVar`s. See [Team noise and push-to-talk echo](TEAM_NOISE.md).
 
 ## 6. Testing Steam between two PCs
 

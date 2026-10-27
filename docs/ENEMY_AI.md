@@ -76,6 +76,8 @@ Leaving **Hunt** resets the suspicion, so the enemy does not go straight back in
 The enemy is blind but not numb. Any player within `catchDistance`, in **any** state, triggers `OnPlayerCaught(Transform)` (with a 3 s cooldown). Players who are ragdolling, or still immune after getting up, are skipped.
 A relic that is being carried counts as its carrier. `EnemyCatchReaction` listens to this event and starts the [ragdoll](RAGDOLL.md).
 
+After a catch the enemy gloats for 3 s (`Stun`), then it is **sated** for 7 s: it walks about 14 m away from its victim, ignores every sound and catches nobody. Before this, the victim's own landing thud called it straight back, it waited on top of them and caught them again the moment their grace time ended, so a player could never get away. Now the victim has time to get up and slip away; an enraged enemy goes back to the chase when the 7 s are over.
+
 `catchDistance` is 2.2 m by default in `EnemyBrain` (and on the sandbox enemy) and 1.6 m on the `Enemy_Blind` prefab used in multiplayer.
 The check is horizontal, so height is ignored.
 

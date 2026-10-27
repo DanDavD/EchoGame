@@ -19,7 +19,7 @@ flowchart TD
 ### Design rules
 1. **Your voice is more than a flashlight, it is also a way to interact.** If you scream into the microphone, the relic you carry reacts and roasts you.
 2. **A relic is a walking hazard.** When it chatters, complains or flies through the air, it reports noise to `NoiseRegistry`, which alerts the blind monster and attracts it.
-3. **A relic is sensitive.** It must be carried whispering and passed around, or it cries until the team soothes it with the human echo ritual. See [Team noise and relic rituals](TEAM_NOISE_AND_RITUALS.md).
+3. **The team shares one noise meter.** Every voice fills it; when it is full the monster charges at the loudest player. A relic can be handed to a teammate with `E`. See [Team noise and push-to-talk echo](TEAM_NOISE.md).
 4. **The symphony is the climax.** When all 3 relics are on the central altar, they sing an absurd choir that floods the cavern with light for good, unlocks the exit portal and sends the monster into a berserk chase.
 
 ---
@@ -157,7 +157,7 @@ This is my trunk-based plan for a vertical slice before November 1st. Status in 
 | 10 | `feat/living-relic-personality` | Merged |
 | 11 | `feat/altar-symphony-extraction` | Merged |
 | 12 | `feat/modular-dungeon-level` | Merged. The catacombs level itself came in through `feat/dungeon-catacombs`: it is generated from a text map (see [Level design](LEVEL_DESIGN.md)) |
-| 13 | `feat/audio-ambience-retro-vfx` | Pending. The procedural look and post-processing are done (see [Visual design](VISUAL_DESIGN.md)), but ambience audio and a retro low-resolution look are not. `feat/ps1-like-textures` has an early PS1 shader attempt that still needs a URP Render Graph fix. |
+| 13 | `feat/audio-ambience-retro-vfx` | Partly done. The procedural look and post-processing are in (see [Visual design](VISUAL_DESIGN.md)), and so are the cave ambience, monster sounds and footsteps (`feat/audio-ambience`, see [Audio design](AUDIO_DESIGN.md)). The retro low-resolution look is still to do. `feat/ps1-like-textures` has an early PS1 shader attempt that still needs a URP Render Graph fix. |
 | 14 | `feat/ui-menu-and-release-build` | Pending |
 
 ### Branch 1 (PR 9): `feat/interaction-and-carrying`

@@ -39,9 +39,10 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     [Tooltip("Below this Level01 nothing is revealed (ignores breathing / background noise).")]
     [SerializeField, Range(0f, 0.5f)] private float _noiseGate = 0.08f;
     [Tooltip("How easy the echo is to trigger. The voice level is multiplied by this before it is mapped to a radius, so " +
-             "every radius (whisper, talk, scream) needs the same fraction less noise: 1 = the original feel, 1.3 = about " +
-             "23% less noise for any radius. Only the echo changes; the monster still hears the real loudness.")]
-    [SerializeField, Range(0.5f, 3f)] private float _voiceSensitivity = 1.3f;
+             "every radius (whisper, talk, scream) needs the same fraction less noise: 1 = the original feel, 1.25 (the default) = " +
+             "about 20% less noise for any radius, so a normal voice lights about 7 m. Only the echo changes; the monster still " +
+             "hears the real loudness. In play the player's Echo sensitivity setting replaces this value.")]
+    [SerializeField, Range(0.5f, 3f)] private float _voiceSensitivity = 1.25f;
 
     [Header("Look & feel")]
     [Tooltip("Seconds for the light to grow (small = snappy).")]
@@ -103,7 +104,7 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     private float _radiusVelocity;
     private float _forcedRadius = -1f;
 
-    /// <summary>How easy the echo is to trigger (see the Voice Sensitivity tooltip). Meant for a settings menu.</summary>
+    /// <summary>How easy the echo is to trigger (see the Voice Sensitivity tooltip). Set from the settings screen.</summary>
     public float VoiceSensitivity
     {
         get => _voiceSensitivity;
@@ -158,10 +159,20 @@ public class EchoVisionController : NetworkBehaviour, IVoiceLevelSource
     private void OnEnable()
     {
         EchoShaderPublisher.Register(this);
+
+        // The player's own echo sensitivity from the settings (it only matters where the radius is computed: the owner).
+        ApplySettings(EchoProtocol.Settings.SettingsManager.Current);
+        EchoProtocol.Settings.SettingsManager.Changed += ApplySettings;
+    }
+
+    private void ApplySettings(EchoProtocol.Settings.GameSettings settings)
+    {
+        VoiceSensitivity = settings.EchoSensitivity;
     }
 
     private void OnDisable()
     {
+        EchoProtocol.Settings.SettingsManager.Changed -= ApplySettings;
         EchoShaderPublisher.Unregister(this);
         _currentRadius = 0f;
         _radiusVelocity = 0f;
