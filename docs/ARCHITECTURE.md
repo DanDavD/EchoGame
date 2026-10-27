@@ -73,6 +73,8 @@ On top of the voice-to-light core, the match loop is built from small, separate 
 | `RelicBrain`, `RelicPersonality`, `RelicVoiceSynthesizer`, `RelicDialogueUI` | `Relics/` | Reactions (sprint, microphone, monster, flight), the dialogue lines, procedural voices and the HUD and world bubbles. A relic is also an `INoiseSource`, so the monster hears it without any AI change. |
 | `AltarReceptacle` and `AltarSocket` | `Altar/` | Objective tracking. Filling all the sockets triggers the symphony climax. |
 | `EscapePortal` and `GameExtractionManager` | `Extraction/` | The extraction countdown, the victory and defeat screens and the restart. |
+| `GameSettings`, `SettingsManager` and `SettingsPanel` | `Settings/`, `UI/` | The player's options. `GameSettings` is plain data (limits, defaults, saving through an `ISettingsStore`, so tests use a memory store). `SettingsManager` applies changes at once and raises `Changed`; the microphone, the echo and the audio listen to it, and the mouse look reads it every frame. |
+| `MatchMenu` and `LobbyMenuUI` | `UI/`, `Networking/UI/` | `MatchMenu` is the state of the `Esc` menu (closed, main, settings, controls) and owns the cursor while it is open. It lives in the core assembly, so the player controller can use it, and `LobbyMenuUI` in the networking assembly draws it, because only it can call *Leave Match*. |
 
 ## Multiplayer model (Fish-Net)
 

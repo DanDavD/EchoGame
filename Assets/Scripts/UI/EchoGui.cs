@@ -152,6 +152,99 @@ namespace EchoProtocol.UI
             return GUI.TextField(new Rect(rect.x + 10f, rect.y, rect.width - 20f, rect.height), value ?? string.Empty, 64, _field);
         }
 
+        /// <summary>
+        /// A horizontal slider in the game's look: a thin track, a cyan fill and a square knob. Click or drag anywhere on it.
+        /// Returns the new value.
+        /// </summary>
+        public static float Slider(Rect rect, float value, float min, float max)
+        {
+            int id = GUIUtility.GetControlID(FocusType.Passive, rect);
+            Event e = Event.current;
+
+            switch (e.GetTypeForControl(id))
+            {
+                case EventType.MouseDown:
+                    if (e.button == 0 && rect.Contains(e.mousePosition))
+                    {
+                        GUIUtility.hotControl = id;
+                        value = SliderValueAt(e.mousePosition.x, rect, min, max);
+                        GUI.changed = true;
+                        e.Use();
+                    }
+                    break;
+                case EventType.MouseDrag:
+                    if (GUIUtility.hotControl == id)
+                    {
+                        value = SliderValueAt(e.mousePosition.x, rect, min, max);
+                        GUI.changed = true;
+                        e.Use();
+                    }
+                    break;
+                case EventType.MouseUp:
+                    if (GUIUtility.hotControl == id)
+                    {
+                        GUIUtility.hotControl = 0;
+                        e.Use();
+                    }
+                    break;
+                case EventType.Repaint:
+                    float t = Mathf.InverseLerp(min, max, value);
+                    bool active = GUIUtility.hotControl == id || rect.Contains(e.mousePosition);
+                    float mid = rect.center.y;
+                    Fill(new Rect(rect.x, mid - 2f, rect.width, 4f), WithAlpha(MutedColor, 0.35f));
+                    Fill(new Rect(rect.x, mid - 2f, rect.width * t, 4f), Cyan);
+                    float knob = active ? 18f : 16f;
+                    Fill(new Rect(rect.x + rect.width * t - knob * 0.5f, mid - knob * 0.5f, knob, knob),
+                        active ? Color.Lerp(Cyan, Color.white, 0.4f) : Cyan);
+                    break;
+            }
+            return value;
+        }
+
+        /// <summary>The value under <paramref name="mouseX"/> on a slider drawn in <paramref name="rect"/> (clamped to the ends).</summary>
+        public static float SliderValueAt(float mouseX, Rect rect, float min, float max)
+        {
+            if (rect.width <= 0f) return min;
+            return Mathf.Lerp(min, max, Mathf.Clamp01((mouseX - rect.x) / rect.width));
+        }
+
+        /// <summary>An on/off switch with its caption. Returns the new state.</summary>
+        public static bool Toggle(Rect rect, bool value, string caption)
+        {
+            bool hover = rect.Contains(Event.current.mousePosition);
+            Rect box = new Rect(rect.x, rect.center.y - 11f, 22f, 22f);
+            Fill(box, WithAlpha(Cyan, hover ? 0.2f : 0.06f));
+            Border(box, WithAlpha(Cyan, hover ? 1f : 0.75f), 1.5f);
+            if (value) Fill(new Rect(box.x + 5f, box.y + 5f, 12f, 12f), Cyan);
+            Label(new Rect(box.xMax + 12f, rect.y, rect.width - 34f, rect.height), caption, _body, TextColor, TextAnchor.MiddleLeft);
+
+            if (GUI.Button(rect, GUIContent.none, GUIStyle.none)) value = !value;
+            return value;
+        }
+
+        /// <summary>A level bar (0..1), for the microphone test.</summary>
+        public static void Meter(Rect rect, float level01, Color color)
+        {
+            Fill(rect, new Color(1f, 1f, 1f, 0.05f));
+            Border(rect, WithAlpha(color, 0.45f), 1f);
+            Fill(new Rect(rect.x + 2f, rect.y + 2f, (rect.width - 4f) * Mathf.Clamp01(level01), rect.height - 4f), color);
+        }
+
+        /// <summary>
+        /// A value with "&lt;" and "&gt;" buttons around it. Returns -1 or +1 when an arrow is clicked, otherwise 0.
+        /// </summary>
+        public static int Stepper(Rect rect, string text, bool enabled = true)
+        {
+            const float arrow = 44f;
+            int step = 0;
+            if (Button(new Rect(rect.x, rect.y, arrow, rect.height), "<", ButtonKind.Normal, enabled)) step = -1;
+            Fill(new Rect(rect.x + arrow + 6f, rect.y, rect.width - arrow * 2f - 12f, rect.height), new Color(1f, 1f, 1f, 0.04f));
+            Label(new Rect(rect.x + arrow + 14f, rect.y, rect.width - arrow * 2f - 28f, rect.height), text, _body,
+                enabled ? TextColor : MutedColor, TextAnchor.MiddleCenter);
+            if (Button(new Rect(rect.xMax - arrow, rect.y, arrow, rect.height), ">", ButtonKind.Normal, enabled)) step = 1;
+            return step;
+        }
+
         public static Color WithAlpha(Color color, float alpha) => new Color(color.r, color.g, color.b, alpha);
 
         private static void EnsureStyles()

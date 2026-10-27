@@ -22,7 +22,7 @@ namespace EchoProtocol.Networking.Core
         [Header("Prefabs")]
         [SerializeField] private FishNet.Object.NetworkObject _enemyPrefab;
         [SerializeField] private FishNet.Object.NetworkObject _relicPrefab;
-        [Tooltip("The team noise meter and relic rituals (TeamNoiseDirector), one per match.")]
+        [Tooltip("The team noise meter (TeamNoiseDirector), one per match.")]
         [SerializeField] private FishNet.Object.NetworkObject _teamNoisePrefab;
 
         [Header("Startup")]
@@ -403,7 +403,7 @@ namespace EchoProtocol.Networking.Core
 #endif
             if (_teamNoisePrefab == null)
             {
-                Debug.LogWarning("[NetworkBootstrap] TeamNoiseDirector prefab is null! The match runs without the team noise meter and rituals.");
+                Debug.LogWarning("[NetworkBootstrap] TeamNoiseDirector prefab is null! The match runs without the team noise meter.");
                 return;
             }
 

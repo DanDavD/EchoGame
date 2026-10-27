@@ -13,7 +13,7 @@ namespace EchoProtocol.Tests
         private const float Dt = 1f / 60f;
         private const float SpeechLevel = 0.35f;
         private const float Headroom = 26f;
-        private const float Sensitivity = 1.3f;
+        private const float Sensitivity = 1.25f; // the shipped default
         private const float Gate = 0.08f;
         private const float MaxRadius = 60f;
 
@@ -76,7 +76,7 @@ namespace EchoProtocol.Tests
         {
             MicrophoneCalibrator calibrator = Learn(floor, speech, 40f);
 
-            Assert.That(EchoMetres(calibrator, speech), Is.InRange(5.5f, 9.5f),
+            Assert.That(EchoMetres(calibrator, speech), Is.InRange(5.5f, 8.5f),
                 $"speech at {speech} dB on a {floor} dB microphone");
         }
 
@@ -139,8 +139,8 @@ namespace EchoProtocol.Tests
             MicrophoneCalibrator quietTalker = Learn(-60f, -46f, 60f);
             MicrophoneCalibrator loudTalker = Learn(-60f, -34f, 60f);
 
-            Assert.That(EchoMetres(quietTalker, -46f), Is.InRange(5.5f, 9.5f), "the quiet talker");
-            Assert.That(EchoMetres(loudTalker, -34f), Is.InRange(5.5f, 9.5f), "the loud talker");
+            Assert.That(EchoMetres(quietTalker, -46f), Is.InRange(5.5f, 8.5f), "the quiet talker");
+            Assert.That(EchoMetres(loudTalker, -34f), Is.InRange(5.5f, 8.5f), "the loud talker");
         }
 
         [Test]

@@ -3,12 +3,12 @@ using FishNet.Managing.Object;
 using FishNet.Object;
 using UnityEditor;
 using UnityEngine;
-using EchoProtocol.Rituals;
+using EchoProtocol.TeamNoise;
 
 namespace EchoProtocol.EditorTools
 {
     /// <summary>
-    /// Generates <c>Assets/Prefabs/TeamNoiseDirector.prefab</c> (the team noise meter, the relic rituals, their HUD and
+    /// Generates <c>Assets/Prefabs/TeamNoiseDirector.prefab</c> (the team noise meter, its HUD and
     /// music), registers it as a spawnable network prefab and points the network rig at it, so a networked server can spawn
     /// one per match. Derived data: edit the components, then rebuild.
     /// Menu: Echo Protocol > Build > Team Noise Director Prefab. Headless:

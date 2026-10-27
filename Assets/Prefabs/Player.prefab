@@ -331,6 +331,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _noiseGate: 0.08
+  _voiceSensitivity: 1.25
   _growSmoothTime: 0.05
   _shrinkSmoothTime: 0.6
   _falloffRatio: 0.5

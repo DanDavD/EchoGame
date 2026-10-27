@@ -7,9 +7,9 @@ using UnityEngine;
 namespace EchoProtocol.Networking.UI
 {
     /// <summary>
-    /// The multiplayer menus: host or join (Steam or LAN), the friends' games list, the waiting room with invites, the
-    /// waiting screens, errors, and a small panel during the match (shown when the cursor is free, after Esc). It only
-    /// reads <see cref="NetworkSession"/> and calls it; all the networking happens there.
+    /// The game's menus: host or join (Steam or LAN), the friends' games list, the waiting room with invites, the waiting
+    /// screens, errors, the settings, and the match menu that Esc opens during a match (resume, settings, controls,
+    /// leave). It only reads <see cref="NetworkSession"/> and calls it; all the networking happens there.
     /// </summary>
     [RequireComponent(typeof(NetworkSession))]
     public class LobbyMenuUI : MonoBehaviour
@@ -34,6 +34,25 @@ namespace EchoProtocol.Networking.UI
         // The photo mode photographs the match as a player sees it, without this panel.
         private bool _photoMode;
 
+        private readonly SettingsPanel _settings = new SettingsPanel();
+        private bool _mainMenuSettings;
+
+        // Drawn on top of every other IMGUI screen (HUD, subtitles, end screen): lower depth is drawn later.
+        private const int MenuGuiDepth = -100;
+
+        private static readonly string[,] Controls =
+        {
+            { "WASD", "Move" },
+            { "Mouse", "Look around" },
+            { "Space", "Jump" },
+            { "Shift", "Sprint (relics hate it)" },
+            { "V (hold)", "Echo: your voice lights the cave" },
+            { "E", "Pick up, dock in the altar, pass" },
+            { "G", "Drop the relic" },
+            { "Esc", "This menu" },
+            { "R", "Restart after the match ends" },
+        };
+
         private void Awake()
         {
             _session = GetComponent<NetworkSession>();
@@ -51,8 +70,21 @@ namespace EchoProtocol.Networking.UI
                 Cursor.visible = true;
             }
 
-            if (state != SessionState.Offline) _joinScreen = false;
+            if (state != SessionState.Offline)
+            {
+                _joinScreen = false;
+                _mainMenuSettings = false;
+            }
             if (state != SessionState.WaitingRoom) _friendsPanel = false;
+
+            // The match menu exists only during a match (and never in the photo mode's pictures).
+            MatchMenu.SetAvailable(state == SessionState.InMatch && !_photoMode);
+
+            // One settings screen for both places; it opens its microphone test while it is on screen and saves on close.
+            bool wantSettings = (state == SessionState.Offline && _mainMenuSettings)
+                             || (state == SessionState.InMatch && MatchMenu.Current == MatchMenu.Page.Settings);
+            if (wantSettings && !_settings.IsOpen) _settings.Open();
+            else if (!wantSettings && _settings.IsOpen) _settings.Close();
 
             if (_joinScreen && Time.unscaledTime >= _nextLobbyRefresh)
             {
@@ -67,18 +99,30 @@ namespace EchoProtocol.Networking.UI
             }
         }
 
+        private void OnDisable()
+        {
+            MatchMenu.SetAvailable(false);
+            _settings.Close();
+        }
+
         private void OnGUI()
         {
+            GUI.depth = MenuGuiDepth;
             EchoGui.PointerOverPanel = false;
             SessionState state = _session.State;
-            if (state == SessionState.InMatch && (Cursor.lockState == CursorLockMode.Locked || _photoMode)) return;
+            if (state == SessionState.InMatch && _photoMode) return;
+            if (state == SessionState.InMatch && !MatchMenu.IsOpen && Cursor.lockState == CursorLockMode.Locked) return;
 
             Vector2 screen = EchoGui.Begin();
             switch (state)
             {
                 case SessionState.Offline:
                     EchoGui.Fill(new Rect(0f, 0f, screen.x, screen.y), EchoGui.Backdrop);
-                    if (_joinScreen) DrawJoinScreen(screen);
+                    if (_mainMenuSettings)
+                    {
+                        if (_settings.Draw(screen)) _mainMenuSettings = false;
+                    }
+                    else if (_joinScreen) DrawJoinScreen(screen);
                     else DrawMainMenu(screen);
                     break;
                 case SessionState.CreatingLobby:
@@ -92,7 +136,7 @@ namespace EchoProtocol.Networking.UI
                     DrawWaitingRoom(screen);
                     break;
                 case SessionState.InMatch:
-                    DrawMatchPanel(screen);
+                    DrawMatchMenu(screen);
                     break;
                 case SessionState.Error:
                     EchoGui.Fill(new Rect(0f, 0f, screen.x, screen.y), EchoGui.Backdrop);
@@ -112,7 +156,7 @@ namespace EchoProtocol.Networking.UI
         private void DrawMainMenu(Vector2 screen)
         {
             bool steam = _session.SteamAvailable;
-            Rect card = CenteredCard(screen, CardWidth, 484f);
+            Rect card = CenteredCard(screen, CardWidth, 560f);
             EchoGui.Card(card, EchoGui.Cyan);
 
             float x = card.x + Pad;
@@ -150,6 +194,19 @@ namespace EchoProtocol.Networking.UI
             y += 60f;
 
             EchoGui.Label(new Rect(x, y, w, 44f), "LAN play uses UDP port 7770. Every player needs the same build of the game.", EchoGui.Muted);
+            y += 56f;
+
+            if (EchoGui.Button(new Rect(x, y, buttonWidth, 46f), "SETTINGS")) _mainMenuSettings = true;
+            if (EchoGui.Button(new Rect(x + w - buttonWidth, y, buttonWidth, 46f), "QUIT", EchoGui.ButtonKind.Danger)) Quit();
+        }
+
+        private static void Quit()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void DrawJoinScreen(Vector2 screen)
@@ -409,32 +466,101 @@ namespace EchoProtocol.Networking.UI
             if (EchoGui.Button(new Rect(x, y, 220f, 46f), "BACK TO MENU")) _session.DismissError();
         }
 
-        // During the match, after Esc frees the cursor: where you are connected, and a way out.
-        private void DrawMatchPanel(Vector2 screen)
+        // During the match. Esc opens the menu; with the menu closed but the cursor free (after alt-tab) only a hint shows.
+        private void DrawMatchMenu(Vector2 screen)
+        {
+            if (!MatchMenu.IsOpen)
+            {
+                Rect hint = new Rect(screen.x - 420f - 24f, 24f, 420f, 56f);
+                EchoGui.Card(hint, EchoGui.Cyan);
+                EchoGui.Label(new Rect(hint.x + 20f, hint.y + 4f, hint.width - 40f, hint.height - 4f),
+                    "Click the game to resume. Esc opens the menu.", EchoGui.Muted, EchoGui.TextColor, TextAnchor.MiddleLeft);
+                return;
+            }
+
+            EchoGui.Fill(new Rect(0f, 0f, screen.x, screen.y), EchoGui.Backdrop);
+            EchoGui.PointerOverPanel = true; // every click belongs to the menu while it is open
+
+            switch (MatchMenu.Current)
+            {
+                case MatchMenu.Page.Settings:
+                    if (_settings.Draw(screen)) MatchMenu.Show(MatchMenu.Page.Main);
+                    break;
+                case MatchMenu.Page.Controls:
+                    DrawControls(screen);
+                    break;
+                default:
+                    DrawMatchMain(screen);
+                    break;
+            }
+        }
+
+        private void DrawMatchMain(Vector2 screen)
         {
             bool host = _session.IsHost;
-            Rect card = new Rect(screen.x - 380f - 24f, 24f, 380f, host ? 210f : 180f);
+            const float width = 460f;
+            Rect card = CenteredCard(screen, width, host ? 486f : 456f);
             EchoGui.Card(card, EchoGui.Cyan);
-            EchoGui.PointerOverPanel = card.Contains(Event.current.mousePosition);
 
-            float x = card.x + 24f;
-            float w = card.width - 48f;
-            float y = card.y + 22f;
+            float x = card.x + Pad;
+            float w = card.width - Pad * 2f;
+            float y = card.y + 30f;
 
-            EchoGui.Label(new Rect(x, y, w, 28f), "IN MATCH", EchoGui.Heading);
-            y += 34f;
+            EchoGui.Label(new Rect(x, y, w, 30f), "MENU", EchoGui.Heading);
+            y += 36f;
             string via = _session.IsSteamSession ? "Steam" : "LAN";
             string role = host ? "Host" : "Client";
-            EchoGui.Label(new Rect(x, y, w, 24f), $"{role} over {via}, {PlayerController.ActivePlayers.Count} players", EchoGui.Muted);
-            y += 30f;
+            int players = PlayerController.ActivePlayers.Count;
+            EchoGui.Label(new Rect(x, y, w, 24f), $"{role} over {via}, {players} {(players == 1 ? "player" : "players")}", EchoGui.Muted);
+            y += 26f;
+            EchoGui.Label(new Rect(x, y, w, 24f), "The match keeps running while this menu is open.", EchoGui.Muted);
+            y += 42f;
+
+            if (EchoGui.Button(new Rect(x, y, w, 56f), "RESUME", EchoGui.ButtonKind.Primary)) MatchMenu.Resume();
+            y += 68f;
+            if (EchoGui.Button(new Rect(x, y, w, 48f), "SETTINGS")) MatchMenu.Show(MatchMenu.Page.Settings);
+            y += 58f;
+            if (EchoGui.Button(new Rect(x, y, w, 48f), "CONTROLS")) MatchMenu.Show(MatchMenu.Page.Controls);
+            y += 70f;
+
+            if (EchoGui.Button(new Rect(x, y, w, 48f), "LEAVE MATCH", EchoGui.ButtonKind.Danger)) _session.Leave();
+            y += 54f;
             if (host)
             {
                 EchoGui.Label(new Rect(x, y, w, 24f), "Leaving ends the match for everyone.", EchoGui.Muted, EchoGui.Gold);
                 y += 30f;
             }
+            EchoGui.Label(new Rect(x, y, w, 24f), "Esc: back to the game", EchoGui.Muted, EchoGui.MutedColor);
+        }
 
-            if (EchoGui.Button(new Rect(x, y, 200f, 44f), "LEAVE MATCH", EchoGui.ButtonKind.Danger)) _session.Leave();
-            EchoGui.Label(new Rect(x + 210f, y, w - 210f, 44f), "Click the game to resume", EchoGui.Muted, EchoGui.MutedColor, TextAnchor.MiddleLeft);
+        private static void DrawControls(Vector2 screen)
+        {
+            int rows = Controls.GetLength(0);
+            Rect card = CenteredCard(screen, CardWidth, 150f + rows * 46f + 70f);
+            EchoGui.Card(card, EchoGui.Cyan);
+
+            float x = card.x + Pad;
+            float w = card.width - Pad * 2f;
+            float y = card.y + 30f;
+
+            EchoGui.Label(new Rect(x, y, w, 30f), "CONTROLS", EchoGui.Heading);
+            y += 36f;
+            EchoGui.Label(new Rect(x, y, w, 44f), "Find the three relics, dock them in the altar and escape through the portal. Stay quiet: the monster hunts by sound.", EchoGui.Muted);
+            y += 64f;
+
+            const float keyWidth = 120f;
+            for (int i = 0; i < rows; i++)
+            {
+                Rect key = new Rect(x, y + 4f, keyWidth - 16f, 32f);
+                EchoGui.Fill(key, EchoGui.WithAlpha(EchoGui.Cyan, 0.08f));
+                EchoGui.Border(key, EchoGui.WithAlpha(EchoGui.Cyan, 0.5f), 1f);
+                EchoGui.Label(key, Controls[i, 0], EchoGui.Muted, EchoGui.Cyan, TextAnchor.MiddleCenter);
+                EchoGui.Label(new Rect(x + keyWidth, y, w - keyWidth, 40f), Controls[i, 1], EchoGui.Body, EchoGui.TextColor, TextAnchor.MiddleLeft);
+                y += 46f;
+            }
+
+            y += 10f;
+            if (EchoGui.Button(new Rect(x + w - 200f, y, 200f, 46f), "BACK", EchoGui.ButtonKind.Primary)) MatchMenu.Show(MatchMenu.Page.Main);
         }
 
         private void DrawNotice(Vector2 screen)

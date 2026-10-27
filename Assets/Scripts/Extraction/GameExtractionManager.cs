@@ -108,7 +108,7 @@ namespace EchoProtocol.Extraction
             SpawnRuntimeRelics();
 
             // Offline (the sandbox) the match builds its own team noise meter; a networked server spawns the prefab instead.
-            if (FindAnyObjectByType<FishNet.Managing.NetworkManager>() == null) EchoProtocol.Rituals.TeamNoiseDirector.CreateOffline();
+            if (FindAnyObjectByType<FishNet.Managing.NetworkManager>() == null) EchoProtocol.TeamNoise.TeamNoiseDirector.CreateOffline();
         }
 
         /// <summary>
@@ -188,7 +188,7 @@ namespace EchoProtocol.Extraction
             }
 
             // Quick restart with [R] when match is resolved
-            if (MatchRules.IsResolved(State) && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+            if (MatchRules.IsResolved(State) && !EchoProtocol.UI.MatchMenu.IsOpen && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
                 RestartMatch();
             }

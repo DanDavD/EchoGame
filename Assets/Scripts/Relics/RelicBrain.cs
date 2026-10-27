@@ -12,9 +12,6 @@ namespace EchoProtocol.Relics
     /// Living relic brain: monitors carrier actions, sprint fatigue, mic loudness,
     /// monster proximity, and high-velocity flight to trigger High on Life style comedy dialogues,
     /// procedural speech audio, Doppler flying screams, and noise generation for enemy hearing.
-    /// Relics are sensitive, like babies: the carrier has to whisper, a hard landing hurts, and with teammates around it
-    /// wants to be passed from hand to hand. Otherwise it cries (loud, constant noise) until the team soothes it with the
-    /// human echo ritual (<see cref="EchoProtocol.Rituals.TeamNoiseDirector"/>). The server decides when it cries.
     /// </summary>
     [RequireComponent(typeof(RelicCarryable), typeof(RelicVoiceSynthesizer), typeof(RelicDialogueUI))]
     public class RelicBrain : NetworkBehaviour, INoiseSource
@@ -31,24 +28,6 @@ namespace EchoProtocol.Relics
         [SerializeField] private float _monsterAlertDistance = 14f;
         [SerializeField] private float _flyingVelocityThreshold = 11.5f;
 
-        [Header("Sensitivity (crying)")]
-        [Tooltip("Carrier voice level (0..1) that is too loud for the relic. Whispering stays below it.")]
-        [SerializeField, Range(0.1f, 1f)] private float _loudVoiceLevel = 0.3f;
-        [Tooltip("Seconds the carrier may stay too loud before it cries.")]
-        [SerializeField] private float _loudVoiceSeconds = 0.8f;
-        [Tooltip("Seconds one player may keep it, with teammates around, before it cries. 0 = never asks to be passed.")]
-        [SerializeField] private float _patienceSeconds = 35f;
-        [Tooltip("Impact speed (m/s) of a landing that makes it cry.")]
-        [SerializeField] private float _hurtImpactSpeed = 7f;
-        [Tooltip("Seconds it cannot cry again after being soothed.")]
-        [SerializeField] private float _sootheGraceSeconds = 8f;
-
-        /// <summary>
-        /// Noise a crying relic makes, constantly, until it is soothed. Loud enough to bring the monster over to investigate
-        /// from about 25 m, not so loud that it starts a hunt before the team can try the ritual.
-        /// </summary>
-        public const float CryNoiseLevel = 0.6f;
-
         private RelicCarryable _carryable;
         private RelicVoiceSynthesizer _synthesizer;
         private RelicDialogueUI _dialogueUI;
@@ -57,7 +36,7 @@ namespace EchoProtocol.Relics
         // INoiseSource implementation
         private float _currentNoiseLevel;
         Transform INoiseSource.Owner => transform;
-        public float NoiseLevel01 => IsCrying ? Mathf.Max(_currentNoiseLevel, CryNoiseLevel) : _currentNoiseLevel;
+        public float NoiseLevel01 => _currentNoiseLevel;
 
         // Runtime state trackers
         private float _chatterTimer;
@@ -72,17 +51,8 @@ namespace EchoProtocol.Relics
         /// <summary>True while every relic is silenced (debug toggle): no subtitles, no speech blips, no dialogue noise.</summary>
         public static bool Muted { get; private set; }
 
-        private static readonly List<RelicBrain> _activeRelics = new List<RelicBrain>();
-
-        /// <summary>Every relic currently enabled in the scene.</summary>
-        public static IReadOnlyList<RelicBrain> ActiveRelics => _activeRelics;
-
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatics()
-        {
-            Muted = false;
-            _activeRelics.Clear();
-        }
+        private static void ResetStatics() => Muted = false;
 
         /// <summary>Silences or restores all relics; silencing also hides the line being shown right now.</summary>
         public static void ToggleMuted()
@@ -97,27 +67,12 @@ namespace EchoProtocol.Relics
         // Cached carrier components
         private PlayerController _carrierController;
         private IVoiceLevelSource _carrierVoiceSource;
+        private GameObject _lastCarrier; // a pick-up by someone else is a hand-off between teammates
 
         /// <summary>The personality chosen by the server, so every peer speaks and sings with the same voice.</summary>
         private readonly SyncVar<int> _syncedPersonality = new SyncVar<int>();
 
-        /// <summary>Whether the relic is crying, decided by the server and mirrored by every peer.</summary>
-        private readonly SyncVar<bool> _cryingSync = new SyncVar<bool>();
-        private bool _cryingLocal;
-
-        private RelicTemper _temper;
-        private GameObject _lastCarrier;
-
         public RelicPersonalityType Personality => _personality;
-
-        /// <summary>The carry component of this relic.</summary>
-        public RelicCarryable Carryable => _carryable;
-
-        /// <summary>True while the relic cries, as seen by this peer.</summary>
-        public bool IsCrying => IsSpawned ? _cryingSync.Value : _cryingLocal;
-
-        /// <summary>True on the peer that decides the relic's mood: the server, or the machine without a network.</summary>
-        private bool IsAuthority => !IsSpawned || IsServerStarted;
 
         private void Awake()
         {
@@ -129,7 +84,6 @@ namespace EchoProtocol.Relics
             _rb = GetComponent<Rigidbody>();
 
             _synthesizer.SetPersonality(_personality);
-            _temper = new RelicTemper(_loudVoiceLevel, _loudVoiceSeconds, _patienceSeconds);
             _chatterTimer = Random.Range(6f, _carryChatterInterval);
             _idleSleepTimer = Random.Range(10f, _idleSleepInterval);
         }
@@ -139,19 +93,13 @@ namespace EchoProtocol.Relics
             base.OnStartClient();
 
             // The value that arrived with the spawn; later changes come through OnPersonalityChanged.
-            if (!IsServerStarted)
-            {
-                ApplyPersonality((RelicPersonalityType)_syncedPersonality.Value);
-                ApplyCryingAudio(_cryingSync.Value);
-            }
+            if (!IsServerStarted) ApplyPersonality((RelicPersonalityType)_syncedPersonality.Value);
         }
 
         private void OnEnable()
         {
             NoiseRegistry.Register(this);
-            if (!_activeRelics.Contains(this)) _activeRelics.Add(this);
             _syncedPersonality.OnChange += OnPersonalityChanged;
-            _cryingSync.OnChange += OnCryingChanged;
 
             if (_carryable != null)
             {
@@ -163,9 +111,7 @@ namespace EchoProtocol.Relics
         private void OnDisable()
         {
             NoiseRegistry.Unregister(this);
-            _activeRelics.Remove(this);
             _syncedPersonality.OnChange -= OnPersonalityChanged;
-            _cryingSync.OnChange -= OnCryingChanged;
 
             if (_carryable != null)
             {
@@ -176,7 +122,6 @@ namespace EchoProtocol.Relics
             if (_synthesizer != null)
             {
                 _synthesizer.StopFlyingScream();
-                _synthesizer.StopCrying();
             }
         }
 
@@ -220,13 +165,11 @@ namespace EchoProtocol.Relics
             _sprintTimer = 0f;
             _micTimer = 0f;
 
-            // A different pair of hands is a pass: the relic is happy to be shared and its patience starts again.
+            // Straight from one player's hands into another's: the relic comments on the hand-off.
             GameObject carrier = carrierNetObj != null ? carrierNetObj.gameObject : null;
             bool handedOver = _lastCarrier != null && carrier != null && carrier != _lastCarrier;
-            if (carrier != _lastCarrier) _temper.ResetPatience();
             _lastCarrier = carrier;
 
-            if (IsCrying) return;
             TriggerDialogue(handedOver ? RelicDialogueCategory.PassedAround : RelicDialogueCategory.Pickup);
         }
 
@@ -247,8 +190,8 @@ namespace EchoProtocol.Relics
             _carrierVoiceSource = null;
             _idleSleepTimer = Random.Range(12f, _idleSleepInterval);
 
-            // Docking in the altar is not a drop: the altar's own line plays instead. A crying relic just keeps crying.
-            if (_carryable.IsLockedInAltar || IsCrying) return;
+            // Docking in the altar is not a drop: the altar's own line plays instead.
+            if (_carryable.IsLockedInAltar) return;
 
             // If not thrown with violent impulse, trigger gentle drop line
             if (!_isAirborneFlying && (_rb == null || _rb.linearVelocity.magnitude < _flyingVelocityThreshold))
@@ -281,11 +224,6 @@ namespace EchoProtocol.Relics
                 _monsterReactionCooldown -= Time.deltaTime;
             }
 
-            if (IsAuthority) UpdateTemper();
-
-            // A crying relic only cries: no chatter, roasts or murmurs on top of the wailing.
-            if (IsCrying) return;
-
             if (_carryable.IsCarried)
             {
                 UpdateCarriedState();
@@ -294,121 +232,6 @@ namespace EchoProtocol.Relics
             {
                 UpdateUnattendedState();
             }
-        }
-
-        /// <summary>Server (or offline) only: runs the mood rules and starts the crying.</summary>
-        private void UpdateTemper()
-        {
-            // Docked in the altar the relic is home and asleep: no more tears.
-            if (_carryable.IsLockedInAltar)
-            {
-                if (IsCrying) SetCrying(false);
-                return;
-            }
-            if (IsCrying) return;
-
-            float carrierLevel = _carryable.IsCarried && _carrierVoiceSource != null ? _carrierVoiceSource.Level01 : 0f;
-            switch (_temper.Tick(Time.deltaTime, _carryable.IsCarried, carrierLevel, PlayerController.ActivePlayers.Count))
-            {
-                case TemperEvent.Fussy:
-                    TriggerDialogue(RelicDialogueCategory.Fussy);
-                    break;
-                case TemperEvent.Cry:
-                    StartCrying();
-                    break;
-            }
-        }
-
-        /// <summary>Server (or offline) only: the relic bursts into tears. Ignored while docked or recently soothed.</summary>
-        public void StartCrying()
-        {
-            if (!IsAuthority || IsCrying || _carryable.IsLockedInAltar || _temper.IsInGrace) return;
-
-            SetCrying(true);
-            TriggerDialogue(RelicDialogueCategory.Crying, isScream: true);
-            Debug.Log($"<color=orange>[RelicBrain]</color> {RelicPersonality.GetProfile(_personality).Name} started crying.");
-        }
-
-        /// <summary>Server (or offline) only: the team echoed the rhythm, so the relic calms down for a while.</summary>
-        public void Soothe()
-        {
-            if (!IsAuthority || !IsCrying) return;
-
-            _temper.Soothe(_sootheGraceSeconds);
-            SetCrying(false);
-            TriggerDialogue(RelicDialogueCategory.Soothed);
-        }
-
-        /// <summary>
-        /// Server (or offline) only: the relic cried itself out after the team failed every ritual. It goes quiet, but only
-        /// for a short grace.
-        /// </summary>
-        public void CryItselfOut()
-        {
-            if (!IsAuthority || !IsCrying) return;
-
-            _temper.Soothe(_sootheGraceSeconds * 0.5f);
-            SetCrying(false);
-        }
-
-        private void SetCrying(bool crying)
-        {
-            if (IsSpawned)
-            {
-                if (IsServerStarted) _cryingSync.Value = crying;
-            }
-            else
-            {
-                _cryingLocal = crying;
-            }
-            ApplyCryingAudio(crying);
-        }
-
-        private void OnCryingChanged(bool prev, bool next, bool asServer)
-        {
-            ApplyCryingAudio(next);
-        }
-
-        private void ApplyCryingAudio(bool crying)
-        {
-            if (_synthesizer == null) return;
-            if (crying) _synthesizer.StartCrying(_personality);
-            else _synthesizer.StopCrying();
-        }
-
-        /// <summary>Plays a ritual rhythm (beat times in seconds, the first at 0) on this relic. Runs on every peer.</summary>
-        public void PlayRitualPattern(float[] pattern)
-        {
-            if (pattern == null || pattern.Length == 0 || !isActiveAndEnabled) return;
-            StartCoroutine(PlayPatternRoutine(pattern));
-        }
-
-        private System.Collections.IEnumerator PlayPatternRoutine(float[] pattern)
-        {
-            // The wailing would drown the beats: hush it while the relic sings its rhythm.
-            if (_synthesizer != null) _synthesizer.StopCrying();
-
-            float start = Time.time;
-            for (int i = 0; i < pattern.Length; i++)
-            {
-                while (Time.time - start < pattern[i]) yield return null;
-                if (_synthesizer != null) _synthesizer.PlayRitualBeat(_personality, i == 0);
-            }
-
-            yield return new WaitForSeconds(0.5f);
-            if (IsCrying) ApplyCryingAudio(true);
-        }
-
-        /// <summary>The "your turn" tick of the ritual. Runs on every peer.</summary>
-        public void PlayTurnTick()
-        {
-            if (_synthesizer != null) _synthesizer.PlayTurnTick();
-        }
-
-        /// <summary>The ritual's success jingle or failure trombone. Runs on every peer.</summary>
-        public void PlayRitualResult(bool success)
-        {
-            if (_synthesizer != null) _synthesizer.PlayRitualResult(success);
         }
 
         private void FixedUpdate()
@@ -449,15 +272,7 @@ namespace EchoProtocol.Relics
                 _currentNoiseLevel = 0.70f; // Impact noise
                 _noiseDecayTimer = 1.5f;
 
-                // A hard landing hurts: the relic cries instead of complaining.
-                if (IsAuthority && impactSpeed >= _hurtImpactSpeed && !_temper.IsInGrace && !_carryable.IsLockedInAltar)
-                {
-                    StartCrying();
-                }
-                else if (!IsCrying)
-                {
-                    TriggerDialogue(RelicDialogueCategory.LandedImpact);
-                }
+                TriggerDialogue(RelicDialogueCategory.LandedImpact);
             }
         }
 
