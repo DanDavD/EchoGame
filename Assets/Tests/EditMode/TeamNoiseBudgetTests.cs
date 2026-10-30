@@ -205,25 +205,12 @@ namespace EchoProtocol.Tests
         }
 
         [Test]
-        public void DuringTheAlarm_ACryingRelic_DoesNotStopTheTeamFromCalmingDown()
+        public void RoomNoise_FromAnIdleMicrophone_AddsNothingToTheMeter()
         {
-            var budget = CreateBudget();
-            budget.ForceAlarm();
-            const float relicCrying = 0.3f;
-
-            for (int i = 0; i < 4; i++)
-            {
-                budget.Tick(0.5f, EchoProtocol.Rituals.TeamNoiseDirector.MeterInput(0f, relicCrying, budget.IsAlarmed));
-            }
-
-            Assert.IsFalse(budget.IsAlarmed, "a silent team ends the alarm even with a relic crying far away");
-        }
-
-        [Test]
-        public void OutsideTheAlarm_ACryingRelic_FillsTheMeter()
-        {
-            Assert.AreEqual(0.5f, EchoProtocol.Rituals.TeamNoiseDirector.MeterInput(0.2f, 0.3f, false), 0.0001f);
-            Assert.AreEqual(0.2f, EchoProtocol.Rituals.TeamNoiseDirector.MeterInput(0.2f, 0.3f, true), 0.0001f);
+            const float gate = 0.15f;
+            Assert.AreEqual(0f, EchoProtocol.TeamNoise.TeamNoiseDirector.CountedNoise(0.08f, gate), "the hum of a room or a fan");
+            Assert.AreEqual(0f, EchoProtocol.TeamNoise.TeamNoiseDirector.CountedNoise(0.14f, gate), "a whisper in plain chat");
+            Assert.AreEqual(0.21f, EchoProtocol.TeamNoise.TeamNoiseDirector.CountedNoise(0.21f, gate), 1e-5f, "normal chat counts in full");
         }
 
         [Test]

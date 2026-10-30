@@ -86,7 +86,7 @@ namespace EchoProtocol.Core
         }
 
         /// <summary>
-        /// Adds <paramref name="amount"/> straight to the meter (a failed ritual, for example). Raises the alarm when it
+        /// Adds <paramref name="amount"/> straight to the meter (the debug key, for example). Raises the alarm when it
         /// fills up. Does nothing during an alarm.
         /// </summary>
         public void Add(float amount)

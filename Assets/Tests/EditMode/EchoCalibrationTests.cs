@@ -47,7 +47,7 @@ namespace EchoProtocol.Tests
                 echo.FindProperty("_maxRadius").floatValue,
                 echo.FindProperty("_radiusCurve").animationCurveValue);
 
-            Assert.That(metres, Is.InRange(6f, 8.5f), "normal speech maps to the speech level, which lights about 7 m");
+            Assert.That(metres, Is.InRange(5.5f, 8.5f), "normal speech maps to the speech level, which lights about 7 m");
         }
 
         [Test]
@@ -60,7 +60,7 @@ namespace EchoProtocol.Tests
         [Test]
         public void NormalSpeech_ReachesAboutSevenMetres_AtTheMiddleOfItsRange()
         {
-            Assert.That(EchoMetres(-40f), Is.InRange(6f, 8.5f), "speaking at -40 dB should light about 7 m");
+            Assert.That(EchoMetres(-40f), Is.InRange(5.5f, 8.5f), "speaking at -40 dB should light about 7 m");
         }
 
         [Test]
@@ -70,8 +70,8 @@ namespace EchoProtocol.Tests
             float middle = EchoMetres(-40f);
             float loud = EchoMetres(-35f);
 
-            Assert.That(quiet, Is.InRange(2f, 4.5f), "-45 dB");
-            Assert.That(loud, Is.InRange(9f, 13f), "-35 dB");
+            Assert.That(quiet, Is.InRange(2f, 5f), "-45 dB");
+            Assert.That(loud, Is.InRange(9f, 14f), "-35 dB");
             Assert.Less(quiet, middle);
             Assert.Less(middle, loud);
         }

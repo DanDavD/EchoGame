@@ -103,26 +103,16 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 557619b98a3f2fb4fb9982b34e0fa192, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.Rituals.TeamNoiseDirector
+  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.TeamNoise.TeamNoiseDirector
   _componentIndexCache: 255
   _addedNetworkObject: {fileID: 8530935368611133136}
   _networkObjectCache: {fileID: 0}
   _capacity: 1
-  _fillPerSecond: 0.1
+  _fillPerSecond: 0.07
   _drainPerSecond: 0.04
   _calmSeconds: 4
-  _quietThreshold: 0.06
-  _cryMeterWeight: 0.5
-  _ritualRadius: 16
-  _maxParticipants: 4
-  _startBeats: 3
-  _leadInSeconds: 0.7
-  _turnExtraSeconds: 1.7
-  _submitSlackSeconds: 1.5
-  _resultSeconds: 2.2
-  _maxFailedRounds: 3
-  _failPenalty: 0.12
-  _successReward: 0.3
+  _quietThreshold: 0.15
+  _playerNoiseGate: 0.15
 --- !u!114 &6753682081290050563
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -134,7 +124,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a0d5fdfa753bff04bbd1ed767676d6fa, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.Rituals.TeamNoiseHud
+  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.TeamNoise.TeamNoiseHud
 --- !u!114 &1633737525475223429
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146,7 +136,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 65a1a7908f4963b4fa2e22bef119f69b, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.Rituals.TeamNoiseAudio
+  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.TeamNoise.TeamNoiseAudio
   _tensionVolume: 0.35
   _alarmVolume: 0.75
   _fadeSeconds: 0.6

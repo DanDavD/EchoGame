@@ -74,5 +74,15 @@ namespace EchoProtocol.Tests
         {
             Assert.AreEqual(LaunchMode.Host, LaunchOptions.Parse(new[] { "-ECHO-HOST" }, out _));
         }
+
+        [Test]
+        public void ConnectLobby_ReadsTheLobbySteamPassesWhenAnInviteStartsTheGame()
+        {
+            Assert.AreEqual(109775241000000123UL, LaunchOptions.ConnectLobby(new[] { "game.exe", "+connect_lobby", "109775241000000123" }));
+            Assert.AreEqual(0UL, LaunchOptions.ConnectLobby(new[] { "game.exe" }), "no invite");
+            Assert.AreEqual(0UL, LaunchOptions.ConnectLobby(new[] { "+connect_lobby" }), "the id is missing");
+            Assert.AreEqual(0UL, LaunchOptions.ConnectLobby(new[] { "+connect_lobby", "not-a-number" }));
+            Assert.AreEqual(0UL, LaunchOptions.ConnectLobby(null));
+        }
     }
 }

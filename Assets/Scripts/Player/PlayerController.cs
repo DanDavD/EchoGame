@@ -42,17 +42,26 @@ public class PlayerController : NetworkBehaviour
         _activePlayers.Remove(this);
     }
 
+    // Every player owns a clone of the input asset. A clone left enabled outlives its player: the Input System keeps
+    // watching its keys, and with domain reload off (Enter Play Mode Options) the next Play throws on every key press
+    // ("Map index out of range", NullReferenceException in InputActionState). So the clone goes with the player.
+    private void OnDestroy()
+    {
+        if (_map != null) _map.Disable();
+        if (_inputActions != null && _ownsInputClone) Destroy(_inputActions);
+    }
+
     /// <summary>Horizontal movement speed (m/s).</summary>
     public float CurrentSpeed => _horizontalVelocity.magnitude;
 
     /// <summary>True if the sprint action is currently held down.</summary>
-    public bool IsSprinting => _sprintAction != null && _sprintAction.IsPressed();
+    public bool IsSprinting => _sprintAction != null && _sprintAction.IsPressed() && !EchoProtocol.UI.MatchMenu.IsOpen;
 
     /// <summary>
     /// True while the local player holds the push-to-talk echo key (V). Only then does the voice light the cave;
     /// talking without it is plain voice chat. Always false on remote avatars, whose input map is disabled.
     /// </summary>
-    public bool IsEchoHeld => _echoAction != null && _echoAction.enabled && _echoAction.IsPressed();
+    public bool IsEchoHeld => _echoAction != null && _echoAction.enabled && _echoAction.IsPressed() && !EchoProtocol.UI.MatchMenu.IsOpen;
 
     /// <summary>Full 3D movement velocity.</summary>
     public Vector3 CurrentVelocity => _horizontalVelocity + Vector3.up * _verticalVelocity;
@@ -89,6 +98,7 @@ public class PlayerController : NetworkBehaviour
     private Vector2 _smoothedLook;
     private float _pitch;
     private bool _controlEnabled = true;
+    private bool _ownsInputClone; // never destroy the shared asset itself, only this player's copy
 
     private AudioSource _footstepSource;
     private float _stepDistanceAccumulator;
@@ -107,6 +117,7 @@ public class PlayerController : NetworkBehaviour
 
         // Clone InputActionAsset per instance so enabling/disabling maps never cross-affects other players
         _inputActions = Instantiate(_inputActions);
+        _ownsInputClone = true;
         _map = _inputActions.FindActionMap(_actionMapName, true);
         _moveAction = _map.FindAction("Move", true);
         _lookAction = _map.FindAction("Look", true);
@@ -120,6 +131,9 @@ public class PlayerController : NetworkBehaviour
         {
             gameObject.AddComponent<EchoProtocol.Player.PlayerInteraction>();
         }
+
+        // Cosmetic and identical on every peer, like the monster's body: any player prefab gets footsteps.
+        if (GetComponent<FootstepAudio>() == null) gameObject.AddComponent<FootstepAudio>();
 
         // Ensure an AudioListener is active from the very first frame (offline sandbox).
         // Remote clones in multiplayer get theirs disabled again in OnStartClient.
@@ -208,9 +222,7 @@ public class PlayerController : NetworkBehaviour
     {
         if (IsSpawned && !base.IsOwner) return;
 
-        // Escape frees the cursor in the editor; click the Game view to lock it again.
-        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
-        else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) SetCursorLocked(true);
+        HandleMenuAndCursor();
 
         if (!_controlEnabled) return; // ragdolled: physics owns the body, ignore input
 
@@ -218,12 +230,30 @@ public class PlayerController : NetworkBehaviour
         HandleMovement();
     }
 
+    // Esc opens the match menu (or goes back inside it). Where no menu is drawn (the offline sandbox) it only frees the
+    // cursor. A click on the game locks the cursor again when the menu is closed (after alt-tab, for example).
+    private void HandleMenuAndCursor()
+    {
+        bool escape = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+        if (escape)
+        {
+            if (EchoProtocol.UI.MatchMenu.Available) EchoProtocol.UI.MatchMenu.Escape();
+            else SetCursorLocked(false);
+            return;
+        }
+
+        bool click = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        if (click && !EchoProtocol.UI.MatchMenu.IsOpen && !EchoProtocol.UI.EchoGui.PointerOverPanel) SetCursorLocked(true);
+    }
+
     private void HandleLook()
     {
-        if (Cursor.lockState != CursorLockMode.Locked) return;
+        if (Cursor.lockState != CursorLockMode.Locked || EchoProtocol.UI.MatchMenu.IsOpen) return;
 
         // Mouse delta is already "per frame", so it must NOT be multiplied by deltaTime.
-        Vector2 raw = _lookAction.ReadValue<Vector2>() * _lookSensitivity;
+        EchoProtocol.Settings.GameSettings settings = EchoProtocol.Settings.SettingsManager.Current;
+        Vector2 raw = _lookAction.ReadValue<Vector2>() * (_lookSensitivity * settings.MouseSensitivity);
+        if (settings.InvertMouseY) raw.y = -raw.y;
         _smoothedLook = Vector2.Lerp(_smoothedLook, raw, 1f - Mathf.Exp(-_lookResponsiveness * Time.deltaTime));
 
         transform.Rotate(0f, _smoothedLook.x, 0f, Space.Self);
@@ -240,10 +270,13 @@ public class PlayerController : NetworkBehaviour
         float dt = Time.deltaTime;
         bool grounded = _controller.isGrounded;
 
+        // With the match menu open the player stands still (the match keeps running around them).
+        bool menuOpen = EchoProtocol.UI.MatchMenu.IsOpen;
+
         // Horizontal: accelerate toward the wished velocity (this is what makes it feel clunky).
-        Vector2 input = _moveAction.ReadValue<Vector2>();
+        Vector2 input = menuOpen ? Vector2.zero : _moveAction.ReadValue<Vector2>();
         Vector3 wishDir = Vector3.ClampMagnitude(transform.right * input.x + transform.forward * input.y, 1f);
-        float speed = _sprintAction.IsPressed() ? _sprintSpeed : _walkSpeed;
+        float speed = IsSprinting ? _sprintSpeed : _walkSpeed;
         Vector3 targetVelocity = wishDir * speed;
 
         float accel = wishDir.sqrMagnitude > 0.01f ? _acceleration : _deceleration;
@@ -252,7 +285,7 @@ public class PlayerController : NetworkBehaviour
 
         // Vertical: gravity + jump.
         if (grounded && _verticalVelocity < 0f) _verticalVelocity = -2f; // small push keeps us glued to the floor
-        if (grounded && _jumpAction.WasPressedThisFrame())
+        if (grounded && !menuOpen && _jumpAction.WasPressedThisFrame())
             _verticalVelocity = Mathf.Sqrt(_jumpHeight * -2f * _gravity);
         _verticalVelocity += _gravity * dt;
 

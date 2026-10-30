@@ -1,193 +1,116 @@
 using UnityEngine;
 
-namespace EchoProtocol.Enemies
+/// <summary>
+/// What the blind monster sounds like: a breath that gets faster and louder as it moves, heavy steps, a low growl every
+/// few seconds and a roar when it starts to hunt. The sounds carry far (you can hear it coming from the next corridors)
+/// and come out muffled when walls stand in between (<see cref="SoundOcclusion"/>), so players can track it by ear.
+///
+/// Like <see cref="MonsterVisual"/>, it is driven only by how fast the monster moves, so every network peer hears the
+/// same thing (clients only receive the movement). It is purely cosmetic: it adds no noise source.
+/// </summary>
+[DisallowMultipleComponent]
+public class MonsterAudio : MonoBehaviour
 {
-    /// <summary>
-    /// Procedural 3D audio for the blind monster:
-    /// - Continuous raspy breathing when idling or investigating.
-    /// - Terrifying guttural screech/roar when entering Hunt or Enraged mode.
-    /// - Heavy rhythmic footsteps when moving through the dungeon.
-    /// Fully procedural: synthesized at runtime with zero external audio assets.
-    /// </summary>
-    [DisallowMultipleComponent]
-    public class MonsterAudio : MonoBehaviour
+    [SerializeField, Range(0f, 1f)] private float _breathVolume = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float _stepVolume = 0.75f;
+    [SerializeField, Range(0f, 1f)] private float _growlVolume = 0.8f;
+    [SerializeField, Range(0f, 1f)] private float _roarVolume = 1f;
+    [Tooltip("Metres covered by one step, used to space the footsteps.")]
+    [SerializeField] private float _strideMetres = 1.6f;
+    [Tooltip("Beyond this distance (m) the monster is silent.")]
+    [SerializeField] private float _hearDistance = 60f;
+    [Tooltip("Seconds between two growls, at random in this range (shorter while it hunts).")]
+    [SerializeField] private Vector2 _growlEverySeconds = new Vector2(5f, 10f);
+
+    private AudioSource _breath;
+    private AudioSource _steps;
+    private AudioSource _voice;
+    private readonly MovementSounds.RoarTrigger _roar = new MovementSounds.RoarTrigger();
+
+    private Vector3 _lastPosition;
+    private float _speed;
+    private float _stepTimer;
+    private float _growlTimer;
+
+    /// <summary>The smoothed horizontal speed (m/s) the sounds follow.</summary>
+    public float Speed => _speed;
+
+    /// <summary>How many growls it has let out (for tests and debugging).</summary>
+    public int Growls { get; private set; }
+
+    private void Awake()
     {
-        private const int SampleRate = 44100;
+        // A large min distance keeps the monster audible from far away (the logarithmic rolloff starts there).
+        _breath = CreateSource("MonsterBreath", 4f);
+        _breath.clip = ProceduralAudio.MonsterBreath();
+        _breath.loop = true;
+        _breath.volume = 0f;
+        _breath.Play();
+        _breath.time = Random.value * (_breath.clip.length - 0.05f); // two monsters never breathe in sync
 
-        private AudioSource _breathSource;
-        private AudioSource _roarSource;
-        private AudioSource _stepSource;
+        _steps = CreateSource("MonsterSteps", 5f);
+        _voice = CreateSource("MonsterVoice", 7f);
 
-        private EnemyBrain _brain;
-        private Vector3 _lastPos;
-        private float _stepTimer;
-        private EnemyState _lastState = EnemyState.Idle;
+        _lastPosition = transform.position;
+        _growlTimer = Range(_growlEverySeconds);
+    }
 
-        private void Awake()
+    private AudioSource CreateSource(string name, float minDistance)
+    {
+        AudioSource source = ProceduralAudio.CreateSource(transform, name, _hearDistance, 1f, minDistance);
+        source.gameObject.AddComponent<SoundOcclusion>();
+        return source;
+    }
+
+    private void Update()
+    {
+        float dt = Time.deltaTime;
+        if (dt <= 0f) return;
+
+        Vector3 delta = transform.position - _lastPosition;
+        delta.y = 0f;
+        _lastPosition = transform.position;
+        float instant = delta.magnitude / dt;
+        if (instant > 20f) instant = _speed; // a teleport (spawn, warp, restart) is not a sprint
+        _speed = Mathf.Lerp(_speed, instant, 1f - Mathf.Exp(-6f * dt));
+
+        // Breath: slow and quiet while it wanders, fast and heavy while it hunts.
+        float effort = Mathf.Clamp01(_speed / MovementSounds.RoarTrigger.HuntSpeed);
+        _breath.volume = _breathVolume * Mathf.Lerp(0.55f, 1f, effort);
+        _breath.pitch = Mathf.Lerp(0.85f, 1.35f, effort);
+
+        if (_roar.Update(_speed, dt))
         {
-            _brain = GetComponent<EnemyBrain>();
-            _lastPos = transform.position;
-
-            _breathSource = CreateAudioSource("Monster_Breathing", true, 0.45f, 2f, 22f);
-            _breathSource.clip = GenerateBreathingClip();
-            _breathSource.Play();
-
-            _roarSource = CreateAudioSource("Monster_Roar", false, 0.9f, 4f, 45f);
-            _roarSource.clip = GenerateRoarClip();
-
-            _stepSource = CreateAudioSource("Monster_Footsteps", false, 0.55f, 2f, 20f);
-            _stepSource.clip = GenerateFootstepClip();
+            _voice.pitch = 0.92f + Random.value * 0.16f;
+            _voice.PlayOneShot(ProceduralAudio.MonsterRoar(), _roarVolume);
+            _growlTimer = Range(_growlEverySeconds); // no growl right on top of the roar
         }
 
-        private AudioSource CreateAudioSource(string name, bool loop, float volume, float minDistance, float maxDistance)
+        // Growls: a regular reminder of where it is, more often while it hunts.
+        _growlTimer -= dt * Mathf.Lerp(1f, 2f, effort);
+        if (_growlTimer <= 0f)
         {
-            var go = new GameObject(name);
-            go.transform.SetParent(transform, false);
-            go.transform.localPosition = new Vector3(0f, 1.4f, 0f);
-
-            var source = go.AddComponent<AudioSource>();
-            source.spatialBlend = 1f;
-            source.rolloffMode = AudioRolloffMode.Logarithmic;
-            source.minDistance = minDistance;
-            source.maxDistance = maxDistance;
-            source.volume = volume;
-            source.loop = loop;
-            source.playOnAwake = false;
-            return source;
+            _growlTimer = Range(_growlEverySeconds);
+            _voice.pitch = 0.85f + Random.value * 0.25f;
+            _voice.PlayOneShot(ProceduralAudio.MonsterGrowl(), _growlVolume * Mathf.Lerp(0.75f, 1f, effort));
+            Growls++;
         }
 
-        private void Update()
+        float interval = MovementSounds.StepInterval(_speed, _strideMetres);
+        if (interval <= 0f)
         {
-            float speed = (transform.position - _lastPos).magnitude / Mathf.Max(0.001f, Time.deltaTime);
-            _lastPos = transform.position;
-
-            EnemyState state = _brain != null ? _brain.State : EnemyState.Idle;
-
-            // Trigger roar on transition to Hunt
-            if (state == EnemyState.Hunt && _lastState != EnemyState.Hunt)
-            {
-                TriggerRoar();
-            }
-            _lastState = state;
-
-            // Adjust breathing intensity
-            if (_breathSource != null)
-            {
-                float targetVol = state == EnemyState.Hunt ? 0.7f : 0.45f;
-                float targetPitch = state == EnemyState.Hunt ? 1.35f : 1.0f;
-                _breathSource.volume = Mathf.MoveTowards(_breathSource.volume, targetVol, Time.deltaTime * 0.5f);
-                _breathSource.pitch = Mathf.MoveTowards(_breathSource.pitch, targetPitch, Time.deltaTime * 0.4f);
-            }
-
-            // Footsteps when moving
-            if (speed > 0.4f)
-            {
-                float stepInterval = state == EnemyState.Hunt ? 0.32f : 0.65f;
-                _stepTimer += Time.deltaTime;
-                if (_stepTimer >= stepInterval)
-                {
-                    _stepTimer = 0f;
-                    PlayFootstep(state == EnemyState.Hunt ? 1.15f : 0.9f);
-                }
-            }
-            else
-            {
-                _stepTimer = 0f;
-            }
+            _stepTimer = 0f;
+            return;
         }
 
-        /// <summary>Plays a terrifying screech roar.</summary>
-        public void TriggerRoar()
+        _stepTimer -= dt;
+        if (_stepTimer <= 0f)
         {
-            if (_roarSource == null) return;
-            _roarSource.pitch = Random.Range(0.92f, 1.08f);
-            _roarSource.Play();
-        }
-
-        private void PlayFootstep(float pitch)
-        {
-            if (_stepSource == null) return;
-            _stepSource.pitch = pitch * Random.Range(0.9f, 1.1f);
-            _stepSource.PlayOneShot(_stepSource.clip);
-        }
-
-        private static AudioClip GenerateBreathingClip()
-        {
-            float duration = 4.0f;
-            int count = Mathf.RoundToInt(SampleRate * duration);
-            var samples = new float[count];
-            var rng = new System.Random(42);
-            float noiseFilter = 0f;
-
-            for (int i = 0; i < count; i++)
-            {
-                float t = (float)i / SampleRate;
-                float cycle = (t % 2.0f) / 2.0f;
-                float breathEnv = Mathf.Sin(Mathf.PI * cycle);
-                breathEnv = Mathf.Pow(breathEnv, 2.2f);
-
-                float white = (float)rng.NextDouble() * 2f - 1f;
-                noiseFilter = noiseFilter * 0.94f + white * 0.06f; // low-pass rasp
-
-                float throatTone = Mathf.Sin(2f * Mathf.PI * 72f * t) * 0.25f;
-                samples[i] = (noiseFilter * 1.8f + throatTone) * breathEnv * 0.3f;
-            }
-
-            var clip = AudioClip.Create("MonsterBreathing", count, 1, SampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
-        private static AudioClip GenerateRoarClip()
-        {
-            float duration = 2.4f;
-            int count = Mathf.RoundToInt(SampleRate * duration);
-            var samples = new float[count];
-            var rng = new System.Random(99);
-            float noise = 0f;
-
-            for (int i = 0; i < count; i++)
-            {
-                float t = (float)i / SampleRate;
-                float env = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / duration));
-                env = Mathf.Pow(env, 0.7f);
-
-                float pitchSlide = Mathf.Lerp(420f, 160f, t / duration);
-                float f1 = Mathf.Sin(2f * Mathf.PI * pitchSlide * t);
-                float f2 = Mathf.Sin(2f * Mathf.PI * (pitchSlide * 1.52f) * t) * 0.6f;
-                float sub = Mathf.Sin(2f * Mathf.PI * 65f * t) * 0.45f;
-
-                float white = (float)rng.NextDouble() * 2f - 1f;
-                noise = noise * 0.90f + white * 0.10f;
-
-                float screech = (f1 + f2 + sub + noise * 1.5f) * env * 0.45f;
-                // Soft distortion clipping
-                screech = Mathf.Clamp(screech * 1.8f, -0.95f, 0.95f);
-                samples[i] = screech;
-            }
-
-            var clip = AudioClip.Create("MonsterRoar", count, 1, SampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
-        }
-
-        private static AudioClip GenerateFootstepClip()
-        {
-            float duration = 0.28f;
-            int count = Mathf.RoundToInt(SampleRate * duration);
-            var samples = new float[count];
-
-            for (int i = 0; i < count; i++)
-            {
-                float t = (float)i / SampleRate;
-                float env = Mathf.Exp(-t * 22f);
-                float thump = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(95f, 38f, t / duration) * t);
-                samples[i] = thump * env * 0.65f;
-            }
-
-            var clip = AudioClip.Create("MonsterFootstep", count, 1, SampleRate, false);
-            clip.SetData(samples, 0);
-            return clip;
+            _stepTimer = interval;
+            _steps.pitch = 0.9f + Random.value * 0.2f;
+            _steps.PlayOneShot(ProceduralAudio.MonsterStep(), _stepVolume * Mathf.Lerp(0.6f, 1f, effort));
         }
     }
+
+    private static float Range(Vector2 range) => range.x + Random.value * Mathf.Max(0f, range.y - range.x);
 }

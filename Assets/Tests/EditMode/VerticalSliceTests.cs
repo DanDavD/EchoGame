@@ -1,6 +1,5 @@
 using NUnit.Framework;
 using UnityEngine;
-using EchoProtocol.Enemies;
 using EchoProtocol.Extraction;
 using EchoProtocol.Voice;
 

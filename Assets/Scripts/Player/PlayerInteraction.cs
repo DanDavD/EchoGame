@@ -127,7 +127,7 @@ namespace EchoProtocol.Player
 
         private void HandleInput()
         {
-            if (Keyboard.current == null) return;
+            if (Keyboard.current == null || EchoProtocol.UI.MatchMenu.IsOpen) return;
 
             // E key: Interact with hovered object
             if (Keyboard.current.eKey.wasPressedThisFrame)

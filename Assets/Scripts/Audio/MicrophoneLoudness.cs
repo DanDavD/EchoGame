@@ -12,14 +12,15 @@ public enum VoiceLoudness
 }
 
 /// <summary>
-/// Captures the default microphone and converts it to a calibrated 0..1 loudness value.
+/// Captures the microphone chosen in the settings (the system default unless the player picked another one) and
+/// converts it to a calibrated 0..1 loudness value.
 /// Pipeline: raw samples -> RMS -> dB -> remap (silenceDb..screamDb) -> attack/release smoothing.
 /// Local-only for now: the networking layer will later send Level01 (as a byte) to the server.
 /// </summary>
 public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
 {
     [Header("Capture")]
-    [Tooltip("Leave empty to use the system default microphone.")]
+    [Tooltip("Leave empty to use the microphone chosen in the settings (or the system default). A name here always wins.")]
     [SerializeField] private string _deviceName = "";
     [SerializeField] private int _sampleRate = 16000;
     [Tooltip("How many of the most recent samples are analysed each frame (512 @16kHz = 32 ms).")]
@@ -61,7 +62,7 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     public float Level01 { get; private set; }
     /// <summary>
     /// Calibrated loudness 0..1 of the newest ~32 ms window, before the attack/release smoothing. The smoothing makes
-    /// short syllables blur together, so rhythm detection (the relic rituals) reads this instead.
+    /// short syllables blur together, so anything that needs the exact timing of the voice reads this instead.
     /// </summary>
     public float RawLevel01 => _clip != null ? _lastMicTarget : 0f;
     /// <summary>Current loudness bucket.</summary>
@@ -78,6 +79,14 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     public bool IsCapturing => _clip != null;
     /// <summary>Samples per second of the capture (and of <see cref="ReadNewSamples"/>).</summary>
     public int CaptureSampleRate => _sampleRate;
+    /// <summary>The device being captured (null = the system default).</summary>
+    public string Device => _device;
+    /// <summary>Whether the debug loudness bar may be drawn (it also needs the debug overlay to be on).</summary>
+    public bool ShowDebugBar
+    {
+        get => _showDebugBar;
+        set => _showDebugBar = value;
+    }
 
     /// <summary>Raised whenever the loudness bucket changes (Silent/Whisper/Talk/Scream).</summary>
     public event Action<VoiceLoudness> OnStateChanged;
@@ -114,11 +123,26 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private void OnEnable()
     {
         StartCapture();
+        EchoProtocol.Settings.SettingsManager.Changed += OnSettingsChanged;
     }
 
     private void OnDisable()
     {
+        EchoProtocol.Settings.SettingsManager.Changed -= OnSettingsChanged;
         StopCapture();
+    }
+
+    // The player picked another microphone in the settings: capture from it (and learn its levels again).
+    private void OnSettingsChanged(EchoProtocol.Settings.GameSettings settings)
+    {
+        string[] devices = Microphone.devices;
+        if (devices.Length == 0) return; // nothing to switch to (and no warning on every slider move)
+
+        string wanted = EchoProtocol.Settings.GameSettings.ResolveMicrophone(_deviceName, settings.MicrophoneDevice, devices);
+        if (_clip != null && wanted == _device) return;
+
+        StopCapture();
+        StartCapture();
     }
 
     private void StartCapture()
@@ -131,7 +155,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
             return;
         }
 
-        _device = string.IsNullOrEmpty(_deviceName) ? null : _deviceName;
+        _device = EchoProtocol.Settings.GameSettings.ResolveMicrophone(
+            _deviceName, EchoProtocol.Settings.SettingsManager.Current.MicrophoneDevice, Microphone.devices);
         _buffer = new float[_sampleWindow];
 
         if (!s_captures.TryGetValue(CaptureKey(_device), out SharedCapture capture) || capture.Users <= 0)

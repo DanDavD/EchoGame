@@ -53,6 +53,13 @@ public class EnemyBrain : NetworkBehaviour
     [Tooltip("Hearing multiplier while the alarm is on: it hears whispers it would normally miss.")]
     [SerializeField] private float _alarmHearingBoost = 1.6f;
 
+    [Header("After a catch")]
+    [Tooltip("After gloating over its victim, the monster walks about this far away from it.")]
+    [SerializeField] private float _retreatDistance = 14f;
+    [Tooltip("Seconds after the gloat during which the monster is sated: it ignores every sound and catches nobody, so " +
+             "the victim can get up and slip away instead of being caught again the moment it stands up.")]
+    [SerializeField] private float _satedSeconds = 7f;
+
     [Header("Debug")]
     [SerializeField] private bool _showDebugLabel = true;
 
@@ -246,6 +253,15 @@ public class EnemyBrain : NetworkBehaviour
     private float _lostTimer;
     private float _nextCatchTime;
     private float _stunUntil;
+    private bool _retreatPending;
+    private Vector3 _victimPosition;
+    private float _satedUntil;
+
+    /// <summary>
+    /// True for a few seconds after a catch: the monster walks away from its victim, deaf to everything. Without it the
+    /// victim's own landing thud called it straight back, and it caught them again the moment their grace time ended.
+    /// </summary>
+    public bool IsSated => Time.time < _satedUntil;
 
     private void Awake()
     {
@@ -255,7 +271,7 @@ public class EnemyBrain : NetworkBehaviour
 
         // The body and procedural audio are cosmetic and identical on every peer, so any monster gets them.
         if (GetComponent<MonsterVisual>() == null) gameObject.AddComponent<MonsterVisual>();
-        if (GetComponent<EchoProtocol.Enemies.MonsterAudio>() == null) gameObject.AddComponent<EchoProtocol.Enemies.MonsterAudio>();
+        if (GetComponent<MonsterAudio>() == null) gameObject.AddComponent<MonsterAudio>();
     }
 
     public override void OnStartClient()
@@ -317,6 +333,8 @@ public class EnemyBrain : NetworkBehaviour
             _agent.isStopped = false;
         }
 
+        if (_retreatPending) BeginRetreat();
+
         TryCatchPlayers();
 
         switch (State)
@@ -367,8 +385,13 @@ public class EnemyBrain : NetworkBehaviour
     // ---------------------------------------------------------------- state ticks
     private void TickIdle()
     {
-        if (_sensor.IsHuntTriggered) { EnterState(EnemyState.Hunt); return; }
-        if (_sensor.IsInvestigable) { EnterState(EnemyState.Investigate); return; }
+        // Sated after a catch: walking away, deaf to everything. Afterwards it hunts as usual (an enraged one at once).
+        if (!IsSated)
+        {
+            if (_enraged) { EnterState(EnemyState.Hunt); return; }
+            if (_sensor.IsHuntTriggered) { EnterState(EnemyState.Hunt); return; }
+            if (_sensor.IsInvestigable) { EnterState(EnemyState.Investigate); return; }
+        }
 
         if (_idleWaiting)
         {
@@ -385,7 +408,58 @@ public class EnemyBrain : NetworkBehaviour
             _idleWaiting = true;
             _timer = Random.Range(_pauseMin, _pauseMax);
             _agent.ResetPath();
+            _agent.speed = _wanderSpeed; // a retreat walks faster; the next wander is calm again
         }
+    }
+
+    /// <summary>
+    /// After the gloat: forget the hunt, become sated (deaf, catching nobody) and walk away from the victim, so the
+    /// player has a real chance to get up and slip away.
+    /// </summary>
+    private void BeginRetreat()
+    {
+        _retreatPending = false;
+        _satedUntil = Time.time + _satedSeconds;
+        _sensor.ResetSuspicion();
+        EnterState(EnemyState.Idle);
+
+        if (TryRetreatFrom(_victimPosition))
+        {
+            _idleWaiting = false;
+            _agent.speed = _investigateSpeed;
+        }
+    }
+
+    /// <summary>Walks to a reachable point about <see cref="_retreatDistance"/> metres from the victim, as far from it as it can find.</summary>
+    private bool TryRetreatFrom(Vector3 victim)
+    {
+        Vector3 away = transform.position - victim;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = -transform.forward;
+        away.Normalize();
+
+        float bestSqr = -1f;
+        Vector3 best = default;
+        for (int i = 0; i < 12; i++)
+        {
+            // A fan around "away from the victim": 0, +30, -30, +60, -60 ... degrees.
+            float angle = (i % 2 == 0 ? 1f : -1f) * ((i + 1) / 2) * 30f;
+            Vector3 candidate = victim + Quaternion.Euler(0f, angle, 0f) * away * _retreatDistance;
+
+            if (!NavMesh.SamplePosition(candidate, out NavMeshHit hit, 4f, NavMesh.AllAreas)) continue;
+            if (!_agent.CalculatePath(hit.position, _path) || _path.status != NavMeshPathStatus.PathComplete) continue;
+
+            float sqr = (hit.position - victim).sqrMagnitude;
+            if (sqr > bestSqr)
+            {
+                bestSqr = sqr;
+                best = hit.position;
+            }
+        }
+
+        if (bestSqr < 0f) return false;
+        MoveTo(best);
+        return true;
     }
 
     private void TickInvestigate()
@@ -459,7 +533,7 @@ public class EnemyBrain : NetworkBehaviour
     /// <summary>Reports a catch when the enemy touches any player or noise owner (blind, but not numb).</summary>
     private void TryCatchPlayers()
     {
-        if (Time.time < _nextCatchTime) return;
+        if (Time.time < _nextCatchTime || IsSated || _retreatPending) return;
 
         float sqrCatch = _catchDistance * _catchDistance;
         Vector3 myPos = transform.position;
@@ -478,9 +552,8 @@ public class EnemyBrain : NetworkBehaviour
             delta.y = 0f;
             if (delta.sqrMagnitude <= sqrCatch)
             {
-                _nextCatchTime = Time.time + _catchCooldown;
                 Debug.Log($"[EnemyBrain] {name} caught player {pc.name}!", this);
-                OnPlayerCaught?.Invoke(pc.transform);
+                Catch(pc.transform);
                 return;
             }
         }
@@ -506,12 +579,21 @@ public class EnemyBrain : NetworkBehaviour
             delta.y = 0f;
             if (delta.sqrMagnitude <= sqrCatch)
             {
-                _nextCatchTime = Time.time + _catchCooldown;
                 Debug.Log($"[EnemyBrain] {name} caught {target.name} via noise source!", this);
-                OnPlayerCaught?.Invoke(target);
+                Catch(target);
                 return;
             }
         }
+    }
+
+    // The catch itself: the reaction (ragdoll, gloating stun) listens to OnPlayerCaught; when the stun ends the monster
+    // retreats from the victim (see BeginRetreat).
+    private void Catch(Transform victim)
+    {
+        _nextCatchTime = Time.time + _catchCooldown;
+        _retreatPending = true;
+        _victimPosition = victim.position;
+        OnPlayerCaught?.Invoke(victim);
     }
 
     private bool TryGetNearestPlayerPosition(out Vector3 position)
@@ -580,7 +662,7 @@ public class EnemyBrain : NetworkBehaviour
         if (IsSpawned && !base.IsServerStarted) return;
         if (!_showDebugLabel || !DebugOverlay.Visible) return;
         GUI.color = State == EnemyState.Hunt ? Color.red : (State == EnemyState.Investigate ? Color.yellow : Color.white);
-        string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}{(_alarmed ? " [ALARM]" : "")}";
+        string statusText = IsFrozen ? $"Enemy: [FROZEN] {State}" : $"Enemy: {State}{(_alarmed ? " [ALARM]" : "")}{(IsSated ? " [SATED]" : "")}";
         GUI.Label(new Rect(10f, 54f, 500f, 22f),
             $"{statusText}  |  heard {_sensor.PerceivedLevel:F2}  |  suspicion {_sensor.Suspicion:F2}");
         GUI.color = Color.white;
