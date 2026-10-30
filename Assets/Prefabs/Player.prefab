@@ -113,6 +113,7 @@ GameObject:
   - component: {fileID: 2948588808068579735}
   - component: {fileID: 1684840789457602177}
   - component: {fileID: 379078608845224634}
+  - component: {fileID: 334265040671928202}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -263,6 +264,9 @@ MonoBehaviour:
   _sampleWindow: 512
   _silenceDb: -55
   _screamDb: -12
+  _autoCalibrate: 1
+  _speechLevel: 0.35
+  _screamHeadroomDb: 26
   _attackSpeed: 30
   _releaseSpeed: 6
   _whisperThreshold: 0.12
@@ -285,6 +289,7 @@ MonoBehaviour:
   _componentIndexCache: 1
   _addedNetworkObject: {fileID: 1684840789457602177}
   _networkObjectCache: {fileID: 1684840789457602177}
+  _pushToTalk: 1
   _voiceSource: {fileID: 6621457269535371558}
   _originOffset: {x: 0, y: 1, z: 0}
   _maxRadius: 60
@@ -331,6 +336,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _noiseGate: 0.08
+  _voiceSensitivity: 1.3
   _growSmoothTime: 0.05
   _shrinkSmoothTime: 0.6
   _falloffRatio: 0.5
@@ -352,6 +358,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: EchoProtocol.Core::VoiceNoiseEmitter
   _voiceSource: {fileID: 6621457269535371558}
   _gain: 1
+  _chatNoiseScale: 0.6
+  _echoNoiseScale: 1.25
 --- !u!54 &1034643132053508373
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -524,6 +532,31 @@ MonoBehaviour:
     X: 0
     Y: 0
     Z: 0
+--- !u!114 &334265040671928202
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5844468698830519124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eba95f3f5747e404ba38091dee818403, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EchoProtocol.Core::EchoProtocol.Voice.ProximityVoice
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 1684840789457602177}
+  _networkObjectCache: {fileID: 0}
+  _minDistance: 2
+  _maxDistance: 28
+  _volume: 1.2
+  _talkGate: 0.06
+  _hangoverSeconds: 0.35
+  _prerollSeconds: 0.12
+  _downsample: 2
+  _packetSeconds: 0.04
+  _prebufferSeconds: 0.1
+  _maxBufferSeconds: 0.5
 --- !u!1 &7484335325855522983
 GameObject:
   m_ObjectHideFlags: 0

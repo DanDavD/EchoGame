@@ -260,6 +260,8 @@ namespace EchoProtocol.Altar
                 if (brain != null) brain.StartSymphonyChoir();
             }
 
+            // Sonic Overload: the harmonic shockwave stuns the blind beast for 4.5s before it goes berserk
+            EnemyBrain.StunAll(4.5f);
             EnemyBrain.EnrageAll(_enragedMonsterSpeed);
 
             if (GameExtractionManager.Instance != null)

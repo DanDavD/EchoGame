@@ -347,11 +347,13 @@ namespace EchoProtocol.Extraction
             if (IsSpawned && IsServerStarted) _quoteSync.Value = index;
         }
 
-        private string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
-        private string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
+        public string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
+        public string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
 
         private void OnGUI()
         {
+            if (FindAnyObjectByType<EchoProtocol.UI.GameHUDController>() != null) return;
+
             int screenW = Screen.width;
             int screenH = Screen.height;
             ExtractionState state = State;

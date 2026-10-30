@@ -82,7 +82,7 @@ sequenceDiagram
 | Altar docking | Server | `ServerRequestDock` and a replicated mask of filled sockets (`SyncVar<int>`) | `AltarReceptacle` checks the carrier, the socket, the distance (6 m) and completion. `AltarRules` holds the rules. |
 | Symphony and match flow | Server | Replicated state, countdown and end-screen quote (`SyncVar`) | `GameExtractionManager` (win, lose, restart) and `MatchRules`. A client that reaches the portal tells the server with `ServerRequestEscape`. |
 | Restart | Server | `ServerRequestRestart` then `NetworkBootstrap.ServerRespawnWorld` | The relics and the monster are despawned and spawned again, and each player gets a `TargetRpc` to move back to a spawn point. |
-| Voice chat | Proximity voice plugin | A separate voice channel | I will decide this in the audio polish phase. |
+| Voice chat | Built-in `ProximityVoice` over Fish-Net | Unreliable RPCs: owner -> server -> everyone else | Works on Tugboat and Steam alike. 8 kHz mu-law, sent only while talking (about 64 kbit/s per speaker), played from a 3D source on the player. |
 
 ---
 

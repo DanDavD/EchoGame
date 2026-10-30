@@ -96,14 +96,29 @@ namespace EchoProtocol.Networking.Core
             _matchFlow = FindAnyObjectByType<EchoProtocol.Extraction.GameExtractionManager>();
             if (_matchFlow != null) _matchFlow.ServerRestarting += ServerRespawnWorld;
 
+            EchoProtocol.UI.MainMenuController.RequestSolo += OnRequestSolo;
+            EchoProtocol.UI.MainMenuController.RequestSteamHost += OnRequestSteamHost;
+            EchoProtocol.UI.MainMenuController.RequestLocalClient += OnRequestLocalClient;
+            EchoProtocol.UI.MainMenuController.RequestDisconnect += OnRequestDisconnect;
+
             DontDestroyOnLoad(gameObject);
         }
+
+        private void OnRequestSolo() => StartLocalHost();
+        private void OnRequestSteamHost() => HostSteamLobby();
+        private void OnRequestLocalClient() => JoinLocalClient();
+        private void OnRequestDisconnect() => Disconnect();
 
         // Plain log lines for connection milestones: they make a multiplayer session debuggable from player logs.
         private void HandleClientConnectionState(ClientConnectionStateArgs args)
         {
             Debug.Log($"[Bootstrap] Client connection: {args.ConnectionState}");
-            if (args.ConnectionState == LocalConnectionState.Started) StartCoroutine(LogWorldSnapshot(5f));
+            EchoProtocol.UI.MainMenuController.IsSessionActive = args.ConnectionState == LocalConnectionState.Started;
+            if (args.ConnectionState == LocalConnectionState.Started)
+            {
+                if (EchoProtocol.UI.MainMenuController.Instance != null) EchoProtocol.UI.MainMenuController.Instance.SetMenuOpen(false);
+                StartCoroutine(LogWorldSnapshot(5f));
+            }
         }
 
         // What this peer actually sees a few seconds after connecting: proves replication reached it, from the logs alone.
@@ -141,6 +156,11 @@ namespace EchoProtocol.Networking.Core
 
         private void OnDestroy()
         {
+            EchoProtocol.UI.MainMenuController.RequestSolo -= OnRequestSolo;
+            EchoProtocol.UI.MainMenuController.RequestSteamHost -= OnRequestSteamHost;
+            EchoProtocol.UI.MainMenuController.RequestLocalClient -= OnRequestLocalClient;
+            EchoProtocol.UI.MainMenuController.RequestDisconnect -= OnRequestDisconnect;
+
             if (_matchFlow != null) _matchFlow.ServerRestarting -= ServerRespawnWorld;
 
             if (_networkManager != null && _networkManager.ServerManager != null)
@@ -229,8 +249,10 @@ namespace EchoProtocol.Networking.Core
 
         private void HandleServerConnectionState(ServerConnectionStateArgs args)
         {
+            EchoProtocol.UI.MainMenuController.IsSessionActive = args.ConnectionState == LocalConnectionState.Started;
             if (args.ConnectionState == LocalConnectionState.Started)
             {
+                if (EchoProtocol.UI.MainMenuController.Instance != null) EchoProtocol.UI.MainMenuController.Instance.SetMenuOpen(false);
                 ApplyLevelPlayerSpawns();
                 SpawnWorld();
             }
@@ -475,6 +497,7 @@ namespace EchoProtocol.Networking.Core
         private void OnGUI()
         {
             if (_networkManager == null) return;
+            if (FindAnyObjectByType<EchoProtocol.UI.MainMenuController>() != null && !DebugOverlay.Visible) return;
 
             // Before connecting this panel is the way in; once connected it is just a debug readout.
             if (IsNetworkActive && !DebugOverlay.Visible) return;

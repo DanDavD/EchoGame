@@ -76,6 +76,8 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     public bool IsAutoCalibrating => _autoCalibrate;
     /// <summary>True once the microphone is actually recording.</summary>
     public bool IsCapturing => _clip != null;
+    /// <summary>Samples per second of the capture (and of <see cref="ReadNewSamples"/>).</summary>
+    public int CaptureSampleRate => _sampleRate;
 
     /// <summary>Raised whenever the loudness bucket changes (Silent/Whisper/Talk/Scream).</summary>
     public event Action<VoiceLoudness> OnStateChanged;
@@ -86,6 +88,9 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
     private bool _calibrating;
     private MicrophoneCalibrator _calibrator = new MicrophoneCalibrator();
     private float _lastMicTarget;
+    private const int VoiceBlockSamples = 256;
+    private int _voiceReadPosition = -1;
+    private float[] _voiceBuffer;
 
     // A microphone device is a process-wide resource. Remote avatars carry this component too (it is disabled
     // right after spawn), so Start/End must be reference counted or a remote spawn would kill the local capture.
@@ -144,10 +149,47 @@ public class MicrophoneLoudness : MonoBehaviour, IVoiceLevelSource
         _calibrator = new MicrophoneCalibrator();
     }
 
+    /// <summary>
+    /// Appends to <paramref name="into"/> every raw sample recorded since the previous call, for voice chat. The first call
+    /// only starts the cursor. Returns how many samples were added. Only the local owner should call it.
+    /// </summary>
+    public int ReadNewSamples(System.Collections.Generic.List<float> into)
+    {
+        if (_clip == null || !Microphone.IsRecording(_device))
+        {
+            _voiceReadPosition = -1;
+            return 0;
+        }
+
+        int position = Microphone.GetPosition(_device);
+        if (_voiceReadPosition < 0)
+        {
+            _voiceReadPosition = position;
+            return 0;
+        }
+
+        int available = EchoProtocol.Voice.VoiceCodec.SamplesSince(_voiceReadPosition, position, _clip.samples);
+
+        // Fixed-size blocks so nothing is allocated per frame; what is left over waits for the next call (at most 16 ms).
+        if (_voiceBuffer == null) _voiceBuffer = new float[VoiceBlockSamples];
+        int added = 0;
+        while (available >= VoiceBlockSamples)
+        {
+            // GetData wraps around the end of the looping clip on its own.
+            _clip.GetData(_voiceBuffer, _voiceReadPosition);
+            into.AddRange(_voiceBuffer);
+            _voiceReadPosition = (_voiceReadPosition + VoiceBlockSamples) % _clip.samples;
+            available -= VoiceBlockSamples;
+            added += VoiceBlockSamples;
+        }
+        return added;
+    }
+
     private void StopCapture()
     {
         if (_clip == null) return;
         _clip = null;
+        _voiceReadPosition = -1;
         _lastMicTarget = 0f;
 
         if (!s_captures.TryGetValue(CaptureKey(_device), out SharedCapture capture)) return;

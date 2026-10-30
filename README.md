@@ -52,6 +52,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A first-person controller that is clunky on purpose (new Input System).
 - Echo vision with push to talk (`V`): while the key is held, the loudness drives spheres of light (up to 4 players) through a URP shader that reads global shader values.
 - A shared team noise meter: voices and crying relics fill it, silence drains it, and a full meter sends the monster and starts dramatic procedural music until the team goes silent.
+- Proximity voice chat: open-mic voice travels over the game's own network and plays from each player's body in 3D, so voices fade with distance, around corners and when a friend is dragged away. Headphones are recommended (there is no echo cancellation).
 - Sensitive relics: they cry when the carrier is too loud, when they land hard, or when nobody passes them around; players hand them over with `E`. A crying relic is calmed with the human echo ritual, a rhythm the team repeats with their voices, checked by rhythm only.
 - Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
 - A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
@@ -62,7 +63,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** ambience audio, a retro low-resolution look, a main menu, a verified release build and proximity voice chat. See the [roadmap](#roadmap).
+**Still to do:** ambience audio, a retro low-resolution look, a main menu and a verified release build. See the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -72,7 +73,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 | Rendering | Universal Render Pipeline (URP 17.6), custom HLSL shader |
 | Input | Unity Input System (`InputSystem_Actions.inputactions`) |
 | Networking | [Fish-Net](https://fish-networking.gitbook.io/docs/) (client-hosted P2P), FishySteamworks and Steamworks.NET |
-| Voice chat (planned) | Proximity voice (Dissonance or Steam Voice) |
+| Voice chat | Built-in proximity voice over Fish-Net (8 kHz mu-law, 3D audio), no extra service |
 | Language | C# |
 
 ## Getting started
@@ -165,7 +166,7 @@ Assets/
 - [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
 - [ ] Ambience audio and monster sound effects
 - [ ] Main menu, microphone calibration screen and a verified release build
-- [ ] Proximity voice chat (Steam Voice or Dissonance, not decided yet)
+- [x] Proximity voice chat over the game's own network (works on LAN and over Steam)
 
 ## Author
 

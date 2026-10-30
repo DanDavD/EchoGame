@@ -136,6 +136,17 @@ public class EnemyBrain : NetworkBehaviour
         }
     }
 
+    /// <summary>Stuns all active monsters, freezing their movement and actions for the given duration.</summary>
+    public static void StunAll(float seconds)
+    {
+        for (int i = 0; i < _activeEnemies.Count; i++)
+        {
+            var brain = _activeEnemies[i];
+            if (brain == null) continue;
+            brain.Stun(seconds);
+        }
+    }
+
     /// <summary>Puts all active monsters into an enraged, permanent hunt state.</summary>
     public static void EnrageAll(float speed = 7.0f)
     {
@@ -242,8 +253,9 @@ public class EnemyBrain : NetworkBehaviour
         _sensor = GetComponent<HearingSensor>();
         _path = new NavMeshPath();
 
-        // The body is cosmetic and identical on every peer, so any monster gets it, whatever prefab or scene made it.
+        // The body and procedural audio are cosmetic and identical on every peer, so any monster gets them.
         if (GetComponent<MonsterVisual>() == null) gameObject.AddComponent<MonsterVisual>();
+        if (GetComponent<EchoProtocol.Enemies.MonsterAudio>() == null) gameObject.AddComponent<EchoProtocol.Enemies.MonsterAudio>();
     }
 
     public override void OnStartClient()

@@ -106,6 +106,5 @@ The networked server spawns the director prefab with the monster and the relics,
 
 ## 8. What is not done yet
 
-- Proximity voice chat. Plain chat is meant for coordinating, so the game needs it; today players talk over Discord or similar.
 - The numbers above are first guesses and need tuning with real players.
 - A player who joins during a ritual does not see it until the next round.

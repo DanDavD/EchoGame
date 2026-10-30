@@ -29,6 +29,12 @@ namespace EchoProtocol.Player
         private PlayerController _hoveredTeammate;
         private RelicCarryable _carriedRelic;
 
+        /// <summary>The interactable currently in front of this player's camera, if any.</summary>
+        public IInteractable HoveredInteractable => _hoveredInteractable;
+
+        /// <summary>The teammate currently in front of this player's camera, if any.</summary>
+        public PlayerController HoveredTeammate => _hoveredTeammate;
+
         /// <summary>Transform where carried items are anchored.</summary>
         public Transform CarrySocket => _carrySocket;
 
@@ -197,6 +203,7 @@ namespace EchoProtocol.Player
         {
             if (_playerController == null) return;
             if (_playerController.IsSpawned && !_playerController.IsOwner) return;
+            if (FindAnyObjectByType<EchoProtocol.UI.GameHUDController>() != null) return;
 
             int screenW = Screen.width;
             int screenH = Screen.height;
