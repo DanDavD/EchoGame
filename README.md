@@ -53,7 +53,8 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A first-person controller that is clunky on purpose (new Input System).
 - Echo vision with push to talk (`V`): while the key is held, the loudness drives spheres of light (up to 4 players) through a URP shader that reads global shader values.
 - A shared team noise meter: voices fill it, silence drains it, and a full meter sends the monster and starts dramatic procedural music until the team goes silent.
-- Players hand a carried relic to a teammate with `E`.
+- Proximity voice chat: open-mic voice travels over the game's own network and plays from each player's body in 3D, so voices fade with distance, around corners and when a friend is dragged away. Headphones are recommended (there is no echo cancellation).
+- Players hand a carried relic to a teammate with E.
 - Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
 - A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
 - Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs over LAN (Tugboat) and over Steam (friends-only lobbies, invites and the Steam relay), with a waiting room and multiplayer menus. LAN play is covered by automated tests; Steam needs two accounts, so I test it by hand (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
@@ -63,7 +64,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** a retro low-resolution look, a first-match tutorial, and proximity voice chat. See the [roadmap](#roadmap).
+**Still to do:** a retro low-resolution look and a first-match tutorial. See the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -73,7 +74,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 | Rendering | Universal Render Pipeline (URP 17.6), custom HLSL shader |
 | Input | Unity Input System (`InputSystem_Actions.inputactions`) |
 | Networking | [Fish-Net](https://fish-networking.gitbook.io/docs/) (client-hosted P2P), FishySteamworks and Steamworks.NET |
-| Voice chat (planned) | Proximity voice (Dissonance or Steam Voice) |
+| Voice chat | Built-in proximity voice over Fish-Net (8 kHz mu-law, 3D audio), no extra service |
 | Language | C# |
 
 ## Getting started
@@ -177,8 +178,8 @@ Assets/
 - [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
 - [x] Cave ambience, monster sounds and footsteps (procedural, no audio files)
 - [x] Settings (volumes, mouse, microphone device and test, echo sensitivity, full screen) and an in-match menu
+- [x] Proximity voice chat over the game's own network (works on LAN and over Steam)
 - [ ] First-match tutorial and hints
-- [ ] Proximity voice chat (Steam Voice or Dissonance, not decided yet)
 
 ## Author
 

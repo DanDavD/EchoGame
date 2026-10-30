@@ -61,6 +61,16 @@ namespace EchoProtocol.Extraction
             if (_portalTrigger != null) _portalTrigger.isTrigger = true;
 
             if (_portalHumSource == null) _portalHumSource = GetComponent<AudioSource>();
+            if (_portalHumSource == null) _portalHumSource = gameObject.AddComponent<AudioSource>();
+            _portalHumSource.spatialBlend = 1f;
+            _portalHumSource.minDistance = 3f;
+            _portalHumSource.maxDistance = 45f;
+            _portalHumSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            _portalHumSource.loop = true;
+            if (_portalHumSource.clip == null)
+            {
+                _portalHumSource.clip = GeneratePortalHumClip();
+            }
 
             if (_startActive)
             {
@@ -70,6 +80,27 @@ namespace EchoProtocol.Extraction
             {
                 DeactivatePortal();
             }
+        }
+
+        private static AudioClip GeneratePortalHumClip()
+        {
+            const int sampleRate = 44100;
+            float duration = 4f;
+            int count = Mathf.RoundToInt(sampleRate * duration);
+            var samples = new float[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                float t = (float)i / sampleRate;
+                float sub = Mathf.Sin(2f * Mathf.PI * 65f * t) * 0.45f;
+                float buzz = Mathf.Sin(2f * Mathf.PI * 130f * t) * 0.25f + Mathf.Sin(2f * Mathf.PI * 195f * t) * 0.15f;
+                float pulse = 0.8f + 0.2f * Mathf.Sin(2f * Mathf.PI * 2f * t);
+                samples[i] = (sub + buzz) * pulse * 0.5f;
+            }
+
+            var clip = AudioClip.Create("EscapePortalHum", count, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
         }
 
         /// <summary>

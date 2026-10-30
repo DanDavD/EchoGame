@@ -6,6 +6,21 @@ Versions follow loose semantic versioning while the game is a prototype (see [CO
 ## [Unreleased]
 
 ### Added
+- **Modern UGUI Presentation System (`MainMenuController.cs`, `GameHUDController.cs`)**:
+  - Replaced legacy `OnGUI()` boxes with responsive, anti-aliased Canvas UI featuring styled frosted panels and clear typography.
+  - **Main Menu**: Screen with Title, Mode selection (Solo Expedition, Host Steam Lobby, Join Local, Sandbox Arena), real-time Microphone VU Calibration Bar with threshold markers, and headphone usage guidance.
+  - **In-Game HUD**: Sleek objective progress card (`[X/3] Relics Secured`), pulsing extraction alert banner with time remaining, dynamic reticle interaction prompt, and carried relic status card.
+  - **Victory & Defeat Screens**: Full-canvas victory panel (Rank S+, quote, Play Again button) and defeat panel with post-mortem roasts and quick retry.
+- **Atmospheric & Monster Audio (`AmbienceAudio.cs`, `MonsterAudio.cs`, `PlayerController.cs`)**:
+  - Catacomb ambient drone: Subterranean 42 Hz earth resonance and low cavern air drafts generated procedurally with zero external clips.
+  - Monster presence audio: Continuous raspy 3D breathing, heavy stone footsteps, and a blood-curdling roar when entering Hunt or Enraged states.
+  - Player stone footsteps: Footstep audio with procedural stone taps, pitch variance, and physical sprint noise reported to `NoiseRegistry`.
+  - Energy portal resonance: Procedural 65 Hz sub-harmonic hum loop in `EscapePortal.cs`.
+- **Sonic Climax Stun Mechanic (`EnemyBrain.cs`, `AltarReceptacle.cs`)**:
+  - Harmonic shockwave stun: Docking the 3rd relic unleashes a sonic overload that freezes the blind beast for 4.5 seconds (`EnemyBrain.StunAll`) before it awakens into its enraged 7.0 m/s sprint, giving the expedition team a fair head start to escape.
+- **Proximity Voice Zero-Allocation Optimization (`ProximityVoice.cs`, `VoiceCodec.cs`)**:
+  - Reusable pre-allocated send packet buffer in `ProximityVoice.cs` and destination buffer overload in `VoiceCodec.cs`, completely eliminating per-frame heap allocations during active voice chat.
+- **Proximity voice chat (`ProximityVoice`, `VoiceCodec`, `VoicePlaybackBuffer`)**: open-mic voice over the game's own network, so it works on a LAN (Tugboat) and over Steam with no extra service. The owner sends only while talking (voice gate, 0.35 s hangover, 0.12 s pre-roll so the first syllable is kept), downsampled to 8 kHz and mu-law encoded (about 64 kbit/s per speaker) on the unreliable channel; the server relays it to everyone else, who play it from a 3D source on the player's body (full volume within 2 m, silent at 28 m). A small jitter buffer (0.1 s pre-buffer, 0.5 s cap) hides network hiccups without letting voices lag. Talking only chats: it never lights the cave. `MicrophoneLoudness.ReadNewSamples` hands out the raw capture in fixed blocks. Added to `Player.prefab` by `ProximityVoiceSetup`. Tests for the codec, the jitter buffer, the microphone cursor, the prefab and a hosted player playing a received packet.
 - **Cave ambience** (`CaveAmbience.cs`): a low room tone that never stops, water drips placed in 3D around the listener, and a distant rumble of rock every 35 to 80 s. It starts by itself, follows the active `AudioListener` and is kept quiet, so speakers do not feed it back into the microphone.
 - **Monster sounds** (`MonsterAudio.cs`): a breath that gets faster and louder as the monster moves, heavy steps, and a roar when it starts to hunt (`MovementSounds.RoarTrigger`: after a calm spell, once per hunt, with an 8 s cooldown). Driven by its movement speed, like `MonsterVisual`, so every peer hears the same thing.
 - **Footsteps** (`FootstepAudio.cs`): soft steps when walking, faster and louder when sprinting, silent in the air and while ragdolling, in 3D, so you hear where your teammates are.

@@ -7,6 +7,7 @@ using EchoProtocol.Level;
 using EchoProtocol.Networking.Core;
 using EchoProtocol.Relics;
 using EchoProtocol.TeamNoise;
+using EchoProtocol.Voice;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
@@ -231,7 +232,29 @@ namespace EchoProtocol.Tests
             Assert.AreEqual(EnemyState.Hunt, monster.State, "the monster charges");
             Assert.AreEqual(1, Object.FindObjectsByType<TeamNoiseDirector>(FindObjectsInactive.Include).Length, "one director per match");
         }
+        [UnityTest]
+        public IEnumerator Host_PlayerCarriesProximityVoice_AndAReceivedPacketPlaysFromTheirBody()
+        {
+            yield return HostAndWaitForPlayer();
 
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+            var voice = player.GetComponent<ProximityVoice>();
+            Assert.IsNotNull(voice, "every spawned player has proximity voice");
+            Assert.IsTrue(voice.IsSpawned, "it is part of the networked player");
+
+            // What the server relays from another player: 0.2 s of a tone, encoded like the owner would send it.
+            var tone = new System.Collections.Generic.List<float>();
+            for (int i = 0; i < voice.VoiceSampleRate / 5; i++) tone.Add(0.4f * Mathf.Sin(i * 0.3f));
+            voice.ReceivePacket(VoiceCodec.Encode(tone, tone.Count));
+
+            AudioSource source = voice.GetComponentsInChildren<AudioSource>().FirstOrDefault(a => a.gameObject.name == "ProximityVoice");
+            Assert.IsNotNull(source, "the voice plays from an audio source on the player's body");
+            Assert.AreEqual(1f, source.spatialBlend, "fully 3D, so it fades with distance");
+            Assert.IsTrue(voice.IsHeardTalking, "a packet just arrived");
+
+            yield return null;
+            Assert.IsTrue(source.isPlaying, "the streaming voice clip is playing");
+        }
         [UnityTest]
         public IEnumerator Disconnect_RemovesThePlayer_AndHostingAgainWorks()
         {

@@ -357,11 +357,12 @@ namespace EchoProtocol.Extraction
             return false;
         }
 
-        private string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
-        private string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
+        public string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
+        public string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
 
         private void OnGUI()
         {
+            if (FindAnyObjectByType<EchoProtocol.UI.GameHUDController>() != null) return;
             // In a networked level the match HUD waits until this player is in the match (not in the waiting room).
             if (IsSpawned && !HasLocalPlayer()) return;
 
