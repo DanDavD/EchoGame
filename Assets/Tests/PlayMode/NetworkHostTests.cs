@@ -256,6 +256,59 @@ namespace EchoProtocol.Tests
             Assert.IsTrue(source.isPlaying, "the streaming voice clip is playing");
         }
         [UnityTest]
+        public IEnumerator Host_EveryCatchCostsATeamLife_AndTheLastOneLosesTheMatch()
+        {
+            yield return HostAndWaitForPlayer();
+            var match = GameExtractionManager.Instance;
+            var hud = EchoProtocol.UI.GameHUDController.Instance;
+            int stings = 0;
+            match.LifeLost += _ => stings++;
+
+            Assert.AreEqual(match.MaxTeamLives, match.TeamLives, "a match starts with every life");
+            Assert.IsNotNull(Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>(), "the HUD's buttons need an EventSystem");
+            Assert.IsNotNull(Object.FindAnyObjectByType<UnityEngine.InputSystem.UI.InputSystemUIInputModule>(), "driven by the new Input System");
+
+            match.ReportPlayerCaught();
+            yield return null;
+            Assert.AreEqual(match.MaxTeamLives - 1, match.TeamLives);
+            Assert.AreEqual(1, stings, "the host hears about the lost life once");
+            Assert.IsNotNull(hud.CaughtToastText, "the HUD shows the catch");
+
+            for (int i = 1; i < match.MaxTeamLives; i++) match.ReportPlayerCaught();
+            yield return null;
+            Assert.AreEqual(0, match.TeamLives);
+            Assert.AreEqual(ExtractionState.Defeat, match.State, "the last life ends the match");
+            Assert.IsTrue(match.CanRestartHere, "the host may restart");
+
+            match.ReportPlayerCaught();
+            Assert.AreEqual(match.MaxTeamLives, stings, "a lost match loses nothing more");
+
+            match.RestartMatch();
+            yield return NetTestUtil.WaitUntil(() => match.State == ExtractionState.ObjectiveInProgress, "the match to restart");
+            Assert.AreEqual(match.MaxTeamLives, match.TeamLives, "a new match gives every life back");
+            Assert.AreEqual(match.MaxTeamLives, stings, "refilling is not a lost life");
+        }
+
+        [UnityTest]
+        public IEnumerator Host_LeavingALostMatch_AndHostingAgain_StartsClean()
+        {
+            yield return HostAndWaitForPlayer();
+            NetworkBootstrap bootstrap = NetTestUtil.FindBootstrap();
+            var match = GameExtractionManager.Instance;
+            for (int i = 0; i < match.MaxTeamLives; i++) match.ReportPlayerCaught();
+            Assert.AreEqual(ExtractionState.Defeat, match.State);
+
+            bootstrap.Disconnect();
+            yield return NetTestUtil.WaitUntil(() => !bootstrap.IsNetworkActive, "networking to stop");
+            Assert.IsTrue(bootstrap.StartLocalHost(), "hosting again");
+            bootstrap.StartMatchWhenReady();
+            yield return NetTestUtil.WaitUntil(() => NetTestUtil.FindLocalPlayer() != null, "the player to spawn again");
+
+            Assert.AreEqual(ExtractionState.ObjectiveInProgress, match.State, "the old defeat is gone");
+            Assert.AreEqual(match.MaxTeamLives, match.TeamLives, "every life is back");
+        }
+
+        [UnityTest]
         public IEnumerator Disconnect_RemovesThePlayer_AndHostingAgainWorks()
         {
             yield return HostAndWaitForPlayer();

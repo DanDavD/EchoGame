@@ -25,7 +25,7 @@ The echo is **push to talk**: your voice only lights the cave while you hold `V`
 | **Talk** | A bigger sphere lights up (about 7 m at a normal speaking voice). Monsters start to investigate. |
 | **Scream** | The whole cavern is revealed, and so is your position. Monsters hunt you. |
 
-The goal is simple: find the three living relics, carry them to the altar, and escape through the portal before the monster gets you. On top of that, the team shares one noise meter:
+The goal is simple: find the three living relics, carry them to the altar, and escape through the portal before it closes. The team shares 3 lives: every time the monster catches someone it costs one, and the catch after the last one ends the match. On top of that, the team shares one noise meter:
 
 - **Team noise meter.** Every voice fills it, an echo more than chat. When it is full the beast charges at whoever made the racket, the music turns dramatic, and the alarm only ends once the whole team stays silent for a few seconds.
 - **Pass the relic.** Look at a teammate close by and press `E` to hand over the relic you carry.
@@ -64,7 +64,9 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
 - A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
 
-**Still to do:** a retro low-resolution look and a first-match tutorial. See the [roadmap](#roadmap).
+- First-match hints: one line under the objective that teaches the echo, then the relics, then the altar, and goes away once the team docks its first relic.
+
+**Still to do:** a retro low-resolution look. See the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -95,7 +97,7 @@ This is an active prototype that I'm building on my own with a deadline. Progres
 - microphone: which device to use, the echo sensitivity, and a live test bar (in the main menu it opens its own test microphone)
 - full screen or window
 
-**Debug keys** (Editor and Development builds only, they are removed from release builds): `N` add team noise, `R` ragdoll yourself, `H` freeze the monsters, `J` toggle full illumination, `M` mute or unmute the relics, `T` switch relic personality, `Y` force a relic roast, `F3` show or hide the debug readouts. On the end screens, `R` restarts the match.
+**Debug keys** (Editor and Development builds only, they are removed from release builds): `N` add team noise, `R` ragdoll yourself, `H` freeze the monsters, `J` toggle full illumination, `M` mute or unmute the relics, `T` switch relic personality, `Y` force a relic roast, `F3` show or hide the debug readouts. On the end screens, `R` (or *Play again*) restarts the match; in multiplayer only the host can, and everyone has *Back to menu*.
 
 **Networking:** the menu offers *Host Match* and *Join a Friend* (friends-only Steam lobbies through the Steam relay, with invites from the game or the Steam overlay) and *Host Local* / *Join IP* (UDP, works without Steam). Everyone meets in a waiting room and the host starts the match. During a match, the `Esc` menu shows the connection and *Leave Match*. Steam co-op needs two Steam accounts, so I test it by hand ([how](docs/NETWORKING.md#6-testing-steam-between-two-pcs)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
 
@@ -179,7 +181,7 @@ Assets/
 - [x] Cave ambience, monster sounds and footsteps (procedural, no audio files)
 - [x] Settings (volumes, mouse, microphone device and test, echo sensitivity, full screen) and an in-match menu
 - [x] Proximity voice chat over the game's own network (works on LAN and over Steam)
-- [ ] First-match tutorial and hints
+- [x] First-match hints, shared team lives and a complete end-of-match flow (play again, back to menu)
 
 ## Author
 

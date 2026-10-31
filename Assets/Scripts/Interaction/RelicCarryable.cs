@@ -187,7 +187,7 @@ namespace EchoProtocol.Interaction
 
             if (IsServerStarted && (_carrier.Value == null || !_carrier.Value.IsSpawned))
             {
-                ServerRequestDrop(Vector3.down * 0.5f);
+                ServerDrop(Vector3.down * 0.5f);
                 return;
             }
 
@@ -389,12 +389,15 @@ namespace EchoProtocol.Interaction
         }
 
         /// <summary>
-        /// Requests the server to attach this relic to the target player.
+        /// Requests the server to attach this relic to the target player. Only that player's own client may ask, and
+        /// only with empty hands.
         /// </summary>
         [ServerRpc(RequireOwnership = false)]
-        public void ServerRequestPickup(NetworkObject playerNetObj)
+        public void ServerRequestPickup(NetworkObject playerNetObj, NetworkConnection caller = null)
         {
-            if (playerNetObj == null || IsCarried || IsLockedInAltar) return;
+            if (playerNetObj == null || !playerNetObj.IsSpawned || IsCarried || IsLockedInAltar) return;
+            if (caller != null && playerNetObj.Owner != caller) return;
+            if (IsCarryingAny(playerNetObj.gameObject)) return;
 
             // Distance check to prevent exploits
             float distSqr = (playerNetObj.transform.position - transform.position).sqrMagnitude;
@@ -404,10 +407,17 @@ namespace EchoProtocol.Interaction
         }
 
         /// <summary>
-        /// Requests the server to drop this relic with a given velocity impulse.
+        /// Requests the server to drop this relic with a given velocity impulse. Only the carrier's own client may ask.
         /// </summary>
         [ServerRpc(RequireOwnership = false)]
-        public void ServerRequestDrop(Vector3 throwVelocity)
+        public void ServerRequestDrop(Vector3 throwVelocity, NetworkConnection caller = null)
+        {
+            if (caller != null && _carrier.Value != null && _carrier.Value.Owner != caller) return;
+            ServerDrop(throwVelocity);
+        }
+
+        /// <summary>Server only: lets go of the relic with an impulse.</summary>
+        private void ServerDrop(Vector3 throwVelocity)
         {
             if (!IsCarried) return;
 

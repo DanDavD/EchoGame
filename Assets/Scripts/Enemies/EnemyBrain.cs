@@ -120,8 +120,11 @@ public class EnemyBrain : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     private void ServerRequestFreeze(bool freeze)
     {
+        // A debug key ([H]): a release server ignores it, so a modified client cannot freeze the monster.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         IsFrozen = freeze;
         ApplyFreeze(freeze);
+#endif
     }
 
     /// <summary>Applies agent freeze / unfreeze.</summary>

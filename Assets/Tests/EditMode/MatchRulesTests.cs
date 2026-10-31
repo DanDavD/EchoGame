@@ -66,5 +66,31 @@ namespace EchoProtocol.Tests
             Assert.AreEqual(0, MatchRules.ClampQuote(-2, 4));
             Assert.AreEqual(0, MatchRules.ClampQuote(5, 0), "an empty list still gives a valid index");
         }
+
+        [Test]
+        public void LoseLife_TakesOneSharedLife_AndTheLastOneIsDefeat()
+        {
+            int lives = MatchRules.DefaultTeamLives;
+            Assert.AreEqual(3, lives, "three catches survive, the fourth loses");
+
+            Assert.IsFalse(MatchRules.LoseLife(ExtractionState.ObjectiveInProgress, ref lives));
+            Assert.IsFalse(MatchRules.LoseLife(ExtractionState.ExtractionActive, ref lives), "catches count during the escape too");
+            Assert.AreEqual(1, lives);
+            Assert.IsTrue(MatchRules.LoseLife(ExtractionState.ObjectiveInProgress, ref lives), "the last life ends the match");
+            Assert.AreEqual(0, lives);
+        }
+
+        [Test]
+        public void LoseLife_DoesNothing_OnceTheMatchIsOver_OrTheLivesAreGone()
+        {
+            int lives = 2;
+            Assert.IsFalse(MatchRules.LoseLife(ExtractionState.Victory, ref lives));
+            Assert.IsFalse(MatchRules.LoseLife(ExtractionState.Defeat, ref lives));
+            Assert.AreEqual(2, lives, "a finished match loses nothing");
+
+            lives = 0;
+            Assert.IsFalse(MatchRules.LoseLife(ExtractionState.ObjectiveInProgress, ref lives), "no second defeat");
+            Assert.AreEqual(0, lives);
+        }
     }
 }

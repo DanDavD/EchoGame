@@ -50,7 +50,7 @@ namespace EchoProtocol.Networking.UI
             { "E", "Pick up, dock in the altar, pass" },
             { "G", "Drop the relic" },
             { "Esc", "This menu" },
-            { "R", "Restart after the match ends" },
+            { "R", "Play again after the match ends (host)" },
         };
 
         private void Awake()
@@ -99,8 +99,15 @@ namespace EchoProtocol.Networking.UI
             }
         }
 
+        private void OnEnable()
+        {
+            // The end screens' "Back to menu" leaves through this session.
+            MatchMenu.LeaveHandler = _session.Leave;
+        }
+
         private void OnDisable()
         {
+            if (MatchMenu.LeaveHandler == (System.Action)_session.Leave) MatchMenu.LeaveHandler = null;
             MatchMenu.SetAvailable(false);
             _settings.Close();
         }

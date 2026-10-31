@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using EchoProtocol.Extraction;
 using EchoProtocol.Player;
 using EchoProtocol.Altar;
@@ -47,6 +49,20 @@ namespace EchoProtocol.UI
         private Text _endScreenQuote;
         private Button _endScreenRestartBtn;
         private Text _endScreenRestartBtnText;
+        private GameObject _endScreenMenuBtn;
+
+        // "CAUGHT!" sting in the middle of the screen when the team loses a life
+        private Text _caughtToast;
+        private float _caughtToastUntil;
+        private GameExtractionManager _listenedMatch;
+        private AltarReceptacle _altar;
+
+        private const float CaughtToastSeconds = 2.6f;
+
+        // First-match hints under the objective banner
+        private Text _hintText;
+        private float _matchStartTime = -1f;
+        private bool _hasEchoed;
 
         // Procedural Textures
         private Sprite _panelSprite;
@@ -58,6 +74,8 @@ namespace EchoProtocol.UI
             if (FindAnyObjectByType<GameHUDController>() == null)
             {
                 var go = new GameObject("UGUI_GameHUD");
+                // This runs once per launch, so the HUD has to survive scene loads (the offline restart reloads the scene).
+                DontDestroyOnLoad(go);
                 go.AddComponent<GameHUDController>();
             }
         }
@@ -76,6 +94,20 @@ namespace EchoProtocol.UI
 
             BuildProceduralSprites();
             BuildCanvasHierarchy();
+            EnsureEventSystem();
+        }
+
+        // A Canvas button only receives clicks through an EventSystem, and this project reads input with the new Input
+        // System only, so the module has to be the Input System one.
+        private static void EnsureEventSystem()
+        {
+            if (EventSystem.current != null || FindAnyObjectByType<EventSystem>() != null) return;
+
+            var go = new GameObject("EventSystem");
+            DontDestroyOnLoad(go);
+            go.AddComponent<EventSystem>();
+            var module = go.AddComponent<InputSystemUIInputModule>();
+            module.AssignDefaultActions();
         }
 
         private void BuildProceduralSprites()
@@ -315,22 +347,149 @@ namespace EchoProtocol.UI
             _endScreenRestartBtnText.color = Color.white;
             _endScreenRestartBtnText.text = "PLAY AGAIN [R]";
 
+            // Back to the main menu (only where there is a network session to leave)
+            _endScreenMenuBtn = new GameObject("MenuButton");
+            _endScreenMenuBtn.transform.SetParent(_endScreenRoot.transform, false);
+            var menuRect = _endScreenMenuBtn.AddComponent<RectTransform>();
+            menuRect.anchorMin = new Vector2(0.5f, 0.14f);
+            menuRect.anchorMax = new Vector2(0.5f, 0.14f);
+            menuRect.sizeDelta = new Vector2(260, 44);
+            var menuImg = _endScreenMenuBtn.AddComponent<Image>();
+            menuImg.sprite = _panelSprite;
+            menuImg.type = Image.Type.Sliced;
+            menuImg.color = new Color(0.18f, 0.2f, 0.26f, 0.95f);
+            _endScreenMenuBtn.AddComponent<Button>().onClick.AddListener(MatchMenu.Leave);
+            var menuTextObj = new GameObject("Text");
+            menuTextObj.transform.SetParent(_endScreenMenuBtn.transform, false);
+            var mtRect = menuTextObj.AddComponent<RectTransform>();
+            mtRect.anchorMin = Vector2.zero;
+            mtRect.anchorMax = Vector2.one;
+            mtRect.offsetMin = Vector2.zero;
+            mtRect.offsetMax = Vector2.zero;
+            var menuText = menuTextObj.AddComponent<Text>();
+            menuText.font = defaultFont;
+            menuText.fontSize = 16;
+            menuText.fontStyle = FontStyle.Bold;
+            menuText.alignment = TextAnchor.MiddleCenter;
+            menuText.color = Color.white;
+            menuText.text = "BACK TO MENU";
+
             _endScreenRoot.SetActive(false);
+
+            // 5. Caught sting
+            var toastObj = new GameObject("CaughtToast");
+            toastObj.transform.SetParent(transform, false);
+            var toastRect = toastObj.AddComponent<RectTransform>();
+            toastRect.anchoredPosition = new Vector2(0, 120);
+            toastRect.sizeDelta = new Vector2(900, 90);
+            _caughtToast = toastObj.AddComponent<Text>();
+            _caughtToast.font = defaultFont;
+            _caughtToast.fontSize = 34;
+            _caughtToast.fontStyle = FontStyle.Bold;
+            _caughtToast.alignment = TextAnchor.MiddleCenter;
+            _caughtToast.color = new Color(1f, 0.25f, 0.2f);
+            toastObj.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
+            toastObj.SetActive(false);
+
+            // 6. First-match hint, just under the objective banner
+            var hintObj = new GameObject("FirstMatchHint");
+            hintObj.transform.SetParent(transform, false);
+            var hintRect = hintObj.AddComponent<RectTransform>();
+            hintRect.anchorMin = new Vector2(0.5f, 1f);
+            hintRect.anchorMax = new Vector2(0.5f, 1f);
+            hintRect.pivot = new Vector2(0.5f, 1f);
+            hintRect.anchoredPosition = new Vector2(0, -92);
+            hintRect.sizeDelta = new Vector2(900, 30);
+            _hintText = hintObj.AddComponent<Text>();
+            _hintText.font = defaultFont;
+            _hintText.fontSize = 16;
+            _hintText.alignment = TextAnchor.MiddleCenter;
+            _hintText.color = new Color(1f, 0.92f, 0.6f, 0.95f);
+            hintObj.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
+            hintObj.SetActive(false);
         }
 
         private void Update()
         {
+            ListenToMatch();
             UpdateTopBanner();
             UpdateInteractionAndCarried();
             UpdateEndScreen();
+            UpdateCaughtToast();
+            UpdateHint();
+        }
+
+        /// <summary>The first-match hint on screen, or null (for tests).</summary>
+        public string HintText => _hintText != null && _hintText.gameObject.activeSelf ? _hintText.text : null;
+
+        private void UpdateHint()
+        {
+            var mgr = GameExtractionManager.Active;
+            var player = FindLocalPlayer();
+            string hint = null;
+
+            if (mgr != null && player != null && mgr.State == ExtractionState.ObjectiveInProgress)
+            {
+                // The clock starts when this player is in the match (not in the waiting room).
+                if (_matchStartTime < 0f) _matchStartTime = Time.time;
+                if (player.IsEchoHeld) _hasEchoed = true;
+
+                var pi = player.GetComponent<PlayerInteraction>();
+                int onAltar = _altar != null ? _altar.FilledSocketsCount : 0;
+                hint = FirstMatchHints.Pick(Time.time - _matchStartTime, _hasEchoed, pi != null && pi.CarriedRelic != null, onAltar);
+            }
+
+            bool show = hint != null && !MatchMenu.IsOpen;
+            if (_hintText.gameObject.activeSelf != show) _hintText.gameObject.SetActive(show);
+            if (show && _hintText.text != hint) _hintText.text = hint;
+        }
+
+        private void OnDestroy()
+        {
+            if (_listenedMatch != null) _listenedMatch.LifeLost -= HandleLifeLost;
+            if (Instance == this) Instance = null;
+        }
+
+        // The match flow can be replaced (a scene reload), so follow whichever instance is current.
+        private void ListenToMatch()
+        {
+            var mgr = GameExtractionManager.Active;
+            if (mgr == _listenedMatch) return;
+            if (_listenedMatch != null) _listenedMatch.LifeLost -= HandleLifeLost;
+            _listenedMatch = mgr;
+            if (_listenedMatch != null) _listenedMatch.LifeLost += HandleLifeLost;
+        }
+
+        private void HandleLifeLost(int livesLeft)
+        {
+            _caughtToast.text = livesLeft > 0
+                ? $"CAUGHT!  {livesLeft} {(livesLeft == 1 ? "life" : "lives")} left for the team"
+                : "CAUGHT!  No lives left";
+            _caughtToastUntil = Time.time + CaughtToastSeconds;
+        }
+
+        /// <summary>The text of the "caught" sting while it is on screen, or null (for tests).</summary>
+        public string CaughtToastText => _caughtToast != null && _caughtToast.gameObject.activeSelf ? _caughtToast.text : null;
+
+        private void UpdateCaughtToast()
+        {
+            float left = _caughtToastUntil - Time.time;
+            bool show = left > 0f;
+            if (_caughtToast.gameObject.activeSelf != show) _caughtToast.gameObject.SetActive(show);
+            if (!show) return;
+
+            Color c = _caughtToast.color;
+            c.a = Mathf.Clamp01(left / 0.6f); // fades out over the last moment
+            _caughtToast.color = c;
         }
 
         private void UpdateTopBanner()
         {
-            var mgr = GameExtractionManager.Instance;
+            var mgr = GameExtractionManager.Active;
             if (mgr == null) return;
 
-            var altar = FindAnyObjectByType<AltarReceptacle>();
+            if (_altar == null) _altar = FindAnyObjectByType<AltarReceptacle>();
+            var altar = _altar;
             ExtractionState state = mgr.State;
 
             if (state == ExtractionState.ObjectiveInProgress)
@@ -342,7 +501,8 @@ namespace EchoProtocol.UI
                 _topBannerBg.color = new Color(0.04f, 0.06f, 0.10f, 0.88f);
                 _topBannerTitle.color = Color.cyan;
                 _topBannerTitle.text = $"PRIMARY OBJECTIVE: Secure Living Relics [{filled}/{total}]";
-                _topBannerSubtitle.text = "Carry 3 sentient relics to the Central Altar. Keep quiet.";
+                _topBannerSubtitle.color = new Color(0.85f, 0.85f, 0.9f, 0.9f);
+                _topBannerSubtitle.text = $"Carry them to the Central Altar. Keep quiet.   TEAM LIVES {mgr.TeamLives}/{mgr.MaxTeamLives}";
             }
             else if (state == ExtractionState.ExtractionActive)
             {
@@ -353,7 +513,7 @@ namespace EchoProtocol.UI
                 _topBannerTitle.color = Color.white;
                 _topBannerTitle.text = $"⚠ CRITICAL EXTRACTION: ESCAPE PORTAL UNLOCKED — {mgr.RemainingTime:F1}s";
                 _topBannerSubtitle.color = Color.yellow;
-                _topBannerSubtitle.text = "The Symphony Choir has enraged the Beast! SPRINT TO THE EXIT PORTAL!";
+                _topBannerSubtitle.text = $"The Beast is enraged! SPRINT TO THE EXIT PORTAL!   TEAM LIVES {mgr.TeamLives}/{mgr.MaxTeamLives}";
             }
             else
             {
@@ -390,7 +550,11 @@ namespace EchoProtocol.UI
             if (pi.CarriedRelic != null)
             {
                 _carriedStatusRoot.SetActive(true);
-                _carriedStatusText.text = $"Carrying: {pi.CarriedRelic.RelicName}   [G] Drop   [T] Personality   [Y] Roast";
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                _carriedStatusText.text = $"Carrying: {pi.CarriedRelic.RelicName}   [G] Drop   [E] Pass   [T] Personality   [Y] Roast";
+#else
+                _carriedStatusText.text = $"Carrying: {pi.CarriedRelic.RelicName}   [G] Drop   [E] Pass to a teammate";
+#endif
             }
             else
             {
@@ -400,7 +564,7 @@ namespace EchoProtocol.UI
 
         private void UpdateEndScreen()
         {
-            var mgr = GameExtractionManager.Instance;
+            var mgr = GameExtractionManager.Active;
             if (mgr == null) return;
 
             ExtractionState state = mgr.State;
@@ -413,7 +577,7 @@ namespace EchoProtocol.UI
                 _endScreenRank.color = Color.yellow;
                 _endScreenRank.text = "RANK: S+ (Expedition Master)";
                 _endScreenQuote.text = mgr.ActiveVictoryQuote;
-                _endScreenRestartBtnText.text = "PLAY AGAIN [R]";
+                SetEndButtons(mgr, "PLAY AGAIN [R]");
             }
             else if (state == ExtractionState.Defeat)
             {
@@ -422,9 +586,11 @@ namespace EchoProtocol.UI
                 _endScreenTitle.color = Color.red;
                 _endScreenTitle.text = "EXPEDITION FAILED";
                 _endScreenRank.color = new Color(1f, 0.4f, 0.4f);
-                _endScreenRank.text = "STATUS: Devoured by the Blind Echo Beast";
+                _endScreenRank.text = mgr.TeamLives <= 0
+                    ? "STATUS: Caught one time too many by the Blind Echo Beast"
+                    : "STATUS: The portal closed. Devoured in the dark.";
                 _endScreenQuote.text = mgr.ActiveDefeatQuote;
-                _endScreenRestartBtnText.text = "TRY AGAIN [R]";
+                SetEndButtons(mgr, "TRY AGAIN [R]");
             }
             else
             {
@@ -432,11 +598,20 @@ namespace EchoProtocol.UI
             }
         }
 
+        // Only the host restarts a networked match; everyone can go back to the menu.
+        private void SetEndButtons(GameExtractionManager mgr, string restartLabel)
+        {
+            bool canRestart = mgr.CanRestartHere;
+            _endScreenRestartBtn.interactable = canRestart;
+            _endScreenRestartBtnText.text = canRestart ? restartLabel : "WAITING FOR THE HOST...";
+            if (_endScreenMenuBtn.activeSelf != MatchMenu.CanLeave) _endScreenMenuBtn.SetActive(MatchMenu.CanLeave);
+        }
+
         private void OnRestartClicked()
         {
-            if (GameExtractionManager.Instance != null)
+            if (GameExtractionManager.Active != null)
             {
-                GameExtractionManager.Instance.RestartMatch();
+                GameExtractionManager.Active.RestartMatch();
             }
         }
 

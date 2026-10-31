@@ -27,19 +27,29 @@ namespace EchoProtocol.Extraction
     {
         public static GameExtractionManager Instance { get; private set; }
 
+        /// <summary>
+        /// The match flow when it is running: offline, or once a session has started it. FishNet keeps a networked scene
+        /// object inactive (and its network state unreadable) until then, so screens that outlive the scene use this.
+        /// </summary>
+        public static GameExtractionManager Active => Instance != null && Instance.isActiveAndEnabled ? Instance : null;
+
         [Header("Extraction Settings")]
         [SerializeField] private float _extractionTimeLimit = 45f;
         [SerializeField] private AltarReceptacle _altar;
+        [Tooltip("Monster catches the whole team survives; the one after the last life ends the match.")]
+        [SerializeField, Min(1)] private int _teamLives = MatchRules.DefaultTeamLives;
 
         // The state as the server holds it; the SyncVars below mirror it for the clients.
         private ExtractionState _localState = ExtractionState.ObjectiveInProgress;
         private float _localRemaining;
         private int _localQuoteIndex;
+        private int _localLives;
         private float _lastSentRemaining;
 
         private readonly SyncVar<int> _stateSync = new SyncVar<int>();
         private readonly SyncVar<float> _remainingSync = new SyncVar<float>();
         private readonly SyncVar<int> _quoteSync = new SyncVar<int>();
+        private readonly SyncVar<int> _livesSync = new SyncVar<int>();
 
         private static readonly string[] VictoryQuotes = new[]
         {
@@ -63,6 +73,9 @@ namespace EchoProtocol.Extraction
         /// </summary>
         public event System.Action ServerRestarting;
 
+        /// <summary>Raised on every peer when the team loses a life to the monster (for the HUD and its sting).</summary>
+        public event System.Action<int> LifeLost;
+
         /// <summary>True when this peer decides the match: the server, or a machine without a network.</summary>
         private bool IsAuthority => !IsSpawned || IsServerStarted;
 
@@ -73,6 +86,18 @@ namespace EchoProtocol.Extraction
         public float RemainingTime => IsSpawned && !IsServerStarted ? _remainingSync.Value : _localRemaining;
 
         private int QuoteIndex => IsSpawned && !IsServerStarted ? _quoteSync.Value : _localQuoteIndex;
+
+        /// <summary>Monster catches the team can still survive, as seen by this peer.</summary>
+        public int TeamLives => IsSpawned && !IsServerStarted ? _livesSync.Value : _localLives;
+
+        /// <summary>The lives a fresh match starts with.</summary>
+        public int MaxTeamLives => _teamLives;
+
+        /// <summary>
+        /// True when this peer may restart a finished match: the host, or a machine without a network. Clients wait for
+        /// the host, so nobody restarts the match while a friend is still reading the end screen.
+        /// </summary>
+        public bool CanRestartHere => !IsSpawned || IsServerStarted;
 
         private void Awake()
         {
@@ -92,7 +117,24 @@ namespace EchoProtocol.Extraction
             }
 
             _localRemaining = _extractionTimeLimit;
+            _localLives = _teamLives;
             _stateSync.OnChange += OnStateSynced;
+            _livesSync.OnChange += OnLivesSynced;
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            // A scene object outlives the session: hosting again after leaving a finished match starts clean.
+            ResetMatchState();
+        }
+
+        public override void OnStopClient()
+        {
+            base.OnStopClient();
+            // Back to the menu: never keep the last match's open portals or full light around for the next session.
+            ApplyPortalState(ExtractionState.ObjectiveInProgress);
+            EchoShaderPublisher.SetFullIllumination(false);
         }
 
         public override void OnStartClient()
@@ -187,8 +229,8 @@ namespace EchoProtocol.Extraction
                 }
             }
 
-            // Quick restart with [R] when match is resolved
-            if (MatchRules.IsResolved(State) && !EchoProtocol.UI.MatchMenu.IsOpen && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+            // Quick restart with [R] when the match is resolved (the host decides on a network).
+            if (CanRestartHere && MatchRules.IsResolved(State) && !EchoProtocol.UI.MatchMenu.IsOpen && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
             {
                 RestartMatch();
             }
@@ -226,12 +268,35 @@ namespace EchoProtocol.Extraction
             ResolveVictory();
         }
 
-        // The portal trigger runs on the owner's client, so the server trusts that a spawned player reached it.
+        // The portal trigger runs on the owner's client. The server only checks that the caller owns that player and
+        // that the player really stands at an open portal (with slack for the position arriving late).
         [ServerRpc(RequireOwnership = false)]
-        private void ServerRequestEscape(NetworkObject playerNetObj)
+        private void ServerRequestEscape(NetworkObject playerNetObj, FishNet.Connection.NetworkConnection caller = null)
         {
             if (playerNetObj == null || !playerNetObj.IsSpawned) return;
+            if (caller != null && playerNetObj.Owner != caller) return;
+            if (!EscapePortal.IsNearOpenPortal(playerNetObj.transform.position, EscapePortalSlackMetres)) return;
             ResolveVictory();
+        }
+
+        /// <summary>How far from an open portal the server still believes a client that says it escaped.</summary>
+        public const float EscapePortalSlackMetres = 6f;
+
+        /// <summary>
+        /// The monster caught a player: the team loses one shared life, and the last one ends the match. Runs on the
+        /// server (the catch is decided there), or locally without a network; elsewhere it does nothing.
+        /// </summary>
+        public void ReportPlayerCaught()
+        {
+            if (!IsAuthority) return;
+
+            int lives = _localLives;
+            bool lastLife = MatchRules.LoseLife(State, ref lives);
+            if (lives == _localLives) return;
+
+            SetLives(lives);
+            LifeLost?.Invoke(lives); // the server (or offline) here; clients from the SyncVar
+            if (lastLife) TriggerDefeat("The beast caught the team one time too many.");
         }
 
         private void ResolveVictory()
@@ -260,6 +325,7 @@ namespace EchoProtocol.Extraction
         private void OnDestroy()
         {
             _stateSync.OnChange -= OnStateSynced;
+            _livesSync.OnChange -= OnLivesSynced;
             if (Instance == this) Instance = null;
         }
 
@@ -277,21 +343,10 @@ namespace EchoProtocol.Extraction
                 return;
             }
 
-            if (IsServerStarted)
-            {
-                ServerRestartMatch();
-            }
-            else
-            {
-                ServerRequestRestart();
-            }
+            // Clients wait for the host to restart (CanRestartHere).
+            if (IsServerStarted) ServerRestartMatch();
         }
 
-        [ServerRpc(RequireOwnership = false)]
-        private void ServerRequestRestart()
-        {
-            if (MatchRules.CanRestart(State)) ServerRestartMatch();
-        }
 
         /// <summary>
         /// Server only: empties the altar, puts the countdown back, and has the network rig respawn the monster and the
@@ -299,16 +354,22 @@ namespace EchoProtocol.Extraction
         /// </summary>
         private void ServerRestartMatch()
         {
-            if (_altar != null) _altar.ResetAltar();
-
-            SetRemaining(_extractionTimeLimit);
-            SetQuote(0);
-            SetState(ExtractionState.ObjectiveInProgress);
-            ApplyPortalState(ExtractionState.ObjectiveInProgress);
-
+            ResetMatchState();
             ServerRestarting?.Invoke();
 
             Debug.Log("<color=cyan><b>[GameExtractionManager] Match restarted.</b></color>");
+        }
+
+        /// <summary>Server (or offline): an empty altar, a full countdown and every team life back.</summary>
+        private void ResetMatchState()
+        {
+            if (_altar != null) _altar.ResetAltar();
+
+            SetRemaining(_extractionTimeLimit);
+            SetLives(_teamLives);
+            SetQuote(0);
+            SetState(ExtractionState.ObjectiveInProgress);
+            ApplyPortalState(ExtractionState.ObjectiveInProgress);
         }
 
         private void OnStateSynced(int prev, int next, bool asServer)
@@ -316,6 +377,13 @@ namespace EchoProtocol.Extraction
             // The host already applied the change as the server.
             if (IsServerStarted) return;
             ApplyPortalState((ExtractionState)next);
+        }
+
+        private void OnLivesSynced(int prev, int next, bool asServer)
+        {
+            // The host already raised it as the server. A restart refills the pool silently.
+            if (IsServerStarted) return;
+            if (next < prev) LifeLost?.Invoke(next);
         }
 
         /// <summary>Opens or closes the escape portals for a state. Runs on every peer.</summary>
@@ -339,6 +407,12 @@ namespace EchoProtocol.Extraction
                 _remainingSync.Value = seconds;
                 _lastSentRemaining = seconds;
             }
+        }
+
+        private void SetLives(int lives)
+        {
+            _localLives = lives;
+            if (IsSpawned && IsServerStarted) _livesSync.Value = lives;
         }
 
         private void SetQuote(int index)

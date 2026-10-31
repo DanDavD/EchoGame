@@ -21,11 +21,28 @@ namespace EchoProtocol.UI
         /// <summary>True while a screen can draw the menu (during a networked match).</summary>
         public static bool Available { get; private set; }
 
+        /// <summary>
+        /// How this game goes back to the main menu (the network session's Leave), set by the screen that owns the
+        /// session. Null without a network: the offline sandbox has no menu to go back to.
+        /// </summary>
+        public static System.Action LeaveHandler { get; set; }
+
+        public static bool CanLeave => LeaveHandler != null;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
             Current = Page.Closed;
             Available = false;
+            LeaveHandler = null;
+        }
+
+        /// <summary>Leaves the match and returns to the main menu (used by the end screens). Does nothing offline.</summary>
+        public static void Leave()
+        {
+            if (LeaveHandler == null) return;
+            Current = Page.Closed;
+            LeaveHandler();
         }
 
         /// <summary>Called by the screen that draws the menu. Turning it off closes the menu without touching the cursor.</summary>
