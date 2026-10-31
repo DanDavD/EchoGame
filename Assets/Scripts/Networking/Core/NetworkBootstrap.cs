@@ -112,27 +112,15 @@ namespace EchoProtocol.Networking.Core
             _matchFlow = FindAnyObjectByType<EchoProtocol.Extraction.GameExtractionManager>();
             if (_matchFlow != null) _matchFlow.ServerRestarting += ServerRespawnWorld;
 
-            EchoProtocol.UI.MainMenuController.RequestSolo += OnRequestSolo;
-            EchoProtocol.UI.MainMenuController.RequestSteamHost += OnRequestSteamHost;
-            EchoProtocol.UI.MainMenuController.RequestLocalClient += OnRequestLocalClient;
-            EchoProtocol.UI.MainMenuController.RequestDisconnect += OnRequestDisconnect;
-
             DontDestroyOnLoad(gameObject);
         }
-
-        private void OnRequestSolo() => StartLocalHost();
-        private void OnRequestSteamHost() => StartSteamHost();
-        private void OnRequestLocalClient() => JoinLocalClient();
-        private void OnRequestDisconnect() => Disconnect();
 
         // Plain log lines for connection milestones: they make a multiplayer session debuggable from player logs.
         private void HandleClientConnectionState(ClientConnectionStateArgs args)
         {
             Debug.Log($"[Bootstrap] Client connection: {args.ConnectionState}");
-            EchoProtocol.UI.MainMenuController.IsSessionActive = args.ConnectionState == LocalConnectionState.Started;
             if (args.ConnectionState == LocalConnectionState.Started)
             {
-                if (EchoProtocol.UI.MainMenuController.Instance != null) EchoProtocol.UI.MainMenuController.Instance.SetMenuOpen(false);
                 StartCoroutine(LogWorldSnapshot(5f));
             }
         }
@@ -179,11 +167,6 @@ namespace EchoProtocol.Networking.Core
 
         private void OnDestroy()
         {
-            EchoProtocol.UI.MainMenuController.RequestSolo -= OnRequestSolo;
-            EchoProtocol.UI.MainMenuController.RequestSteamHost -= OnRequestSteamHost;
-            EchoProtocol.UI.MainMenuController.RequestLocalClient -= OnRequestLocalClient;
-            EchoProtocol.UI.MainMenuController.RequestDisconnect -= OnRequestDisconnect;
-
             if (_matchFlow != null) _matchFlow.ServerRestarting -= ServerRespawnWorld;
 
             if (_networkManager != null && _networkManager.ServerManager != null)
@@ -378,11 +361,9 @@ namespace EchoProtocol.Networking.Core
 
         private void HandleServerConnectionState(ServerConnectionStateArgs args)
         {
-            EchoProtocol.UI.MainMenuController.IsSessionActive = args.ConnectionState == LocalConnectionState.Started;
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 // The server opens the waiting room: the world and the players spawn when the host starts the match.
-                if (EchoProtocol.UI.MainMenuController.Instance != null) EchoProtocol.UI.MainMenuController.Instance.SetMenuOpen(false);
                 ApplyLevelPlayerSpawns();
                 if (_startMatchWhenReady)
                 {

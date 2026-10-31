@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Transporting;
 using UnityEngine;
@@ -12,7 +13,8 @@ namespace EchoProtocol.Voice
     /// <item>The <b>owner</b> reads its microphone, keeps only the moments it is actually talking (with a short hangover
     /// so word endings are not cut), downsamples and mu-law encodes the audio, and sends small packets to the server on the
     /// unreliable channel: a lost packet is a tiny gap, never a delay.</item>
-    /// <item>The <b>server</b> relays every packet to everyone else.</item>
+    /// <item>The <b>server</b> relays each packet to the other players close enough to hear it (beyond the hearing
+    /// distance the 3D source is silent anyway), and drops packets from a speaker who sends far more than talking needs.</item>
     /// <item>Every <b>other peer</b> plays it from a 3D audio source on that player's body. Voices fade with distance, so
     /// a friend who falls, wanders off or gets dragged away by the beast fades out too.</item>
     /// </list>
@@ -39,8 +41,6 @@ namespace EchoProtocol.Voice
         [SerializeField] private float _hangoverSeconds = 0.35f;
         [Tooltip("Seconds of audio kept from just before the voice was detected, so the first syllable is not clipped.")]
         [SerializeField] private float _prerollSeconds = 0.12f;
-        [Tooltip("1 sends the capture rate (16 kHz); 2 halves it (8 kHz, phone quality, half the bandwidth).")]
-        [SerializeField, Range(1, 4)] private int _downsample = 2;
         [Tooltip("Seconds of audio per packet. Smaller is snappier but costs more packets.")]
         [SerializeField] private float _packetSeconds = 0.04f;
 
@@ -65,14 +65,22 @@ namespace EchoProtocol.Voice
         private byte[] _packetBuffer;
         private float _hangover;
 
+        // Server side: one limiter per speaker.
+        private PacketRateLimiter _relayLimiter;
+
         // Listener side.
         private VoicePlaybackBuffer _buffer;
         private AudioSource _source;
         private float[] _decoded;
         private float _lastPacketTime = -10f;
 
-        /// <summary>Samples per second the voice travels at.</summary>
-        public int VoiceSampleRate => Mathf.Max(1000, (_mic != null ? _mic.CaptureSampleRate : 16000) / Mathf.Max(1, _downsample));
+        /// <summary>Samples per second the voice travels at (the same on every peer).</summary>
+        public int VoiceSampleRate => VoiceCodec.SampleRate;
+
+        /// <summary>Packets the server dropped from this speaker for sending too fast (for tests and debugging).</summary>
+        public int RelayDropped => _relayLimiter != null ? _relayLimiter.Dropped : 0;
+
+        private int DownsampleFactor => VoiceRelay.DownsampleFactor(_mic != null ? _mic.CaptureSampleRate : 16000);
 
         /// <summary>True while this player's voice was heard over the network a moment ago (for a "talking" icon).</summary>
         public bool IsHeardTalking => Time.time - _lastPacketTime < 0.25f;
@@ -133,7 +141,7 @@ namespace EchoProtocol.Voice
             if (_mic.Level01 >= _talkGate) _hangover = _hangoverSeconds;
             else _hangover -= Time.deltaTime;
 
-            VoiceCodec.Downsample(_captured, _downsample, _pending, _carry);
+            VoiceCodec.Downsample(_captured, DownsampleFactor, _pending, _carry);
 
             IsSending = _hangover > 0f;
             if (!IsSending)
@@ -162,13 +170,40 @@ namespace EchoProtocol.Voice
         private void ServerRelayVoice(byte[] packet, Channel channel = Channel.Unreliable)
         {
             if (packet == null || packet.Length == 0 || packet.Length > MaxPacketBytes) return;
-            ObserversPlayVoice(packet);
+            if (!RelayLimiter.TryConsume(Time.unscaledTime)) return;
+
+            Vector3 speaker = transform.position;
+            foreach (NetworkConnection listener in Observers)
+            {
+                if (listener == Owner) continue;
+
+                // A connection's first object is its player. Without one (still loading) it gets the voice anyway.
+                NetworkObject body = listener.FirstObject;
+                if (body != null && !VoiceRelay.InRange(speaker, body.transform.position, _maxDistance)) continue;
+
+                TargetPlayVoice(listener, packet);
+            }
+        }
+
+        // Talking needs one packet every _packetSeconds; allow half as much again, and the pre-roll leaving in one burst.
+        private PacketRateLimiter RelayLimiter
+        {
+            get
+            {
+                if (_relayLimiter == null)
+                {
+                    float perSecond = 1f / Mathf.Max(0.005f, _packetSeconds);
+                    float burst = Mathf.Ceil(_prerollSeconds / Mathf.Max(0.005f, _packetSeconds)) + 6f;
+                    _relayLimiter = new PacketRateLimiter(burst, perSecond * 1.5f);
+                }
+                return _relayLimiter;
+            }
         }
 
         // ---------------------------------------------------------------- everyone else: play
 
-        [ObserversRpc(ExcludeOwner = true)]
-        private void ObserversPlayVoice(byte[] packet, Channel channel = Channel.Unreliable)
+        [TargetRpc]
+        private void TargetPlayVoice(NetworkConnection target, byte[] packet, Channel channel = Channel.Unreliable)
         {
             ReceivePacket(packet);
         }

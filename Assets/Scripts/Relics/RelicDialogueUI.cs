@@ -154,9 +154,44 @@ namespace EchoProtocol.Relics
             ReleaseScreenCard();
         }
 
+        // Built once (GUI.skin only exists inside OnGUI) instead of every frame; each draw sets its own text colour.
+        private static GUIStyle s_bodyStyle;
+        private static GUIStyle s_headerStyle;
+        private static GUIStyle s_bubbleStyle;
+
+        private static void EnsureStyles()
+        {
+            if (s_bodyStyle != null) return;
+            s_bodyStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 15,
+                fontStyle = FontStyle.Bold,
+                wordWrap = true,
+                alignment = TextAnchor.UpperLeft,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0)
+            };
+            s_headerStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft
+            };
+            s_bubbleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0)
+            };
+        }
+
         private void OnGUI()
         {
             if (!_isDisplaying || _fadeAlpha <= 0.01f || string.IsNullOrEmpty(_currentVisibleText)) return;
+            EnsureStyles();
 
             var profile = RelicPersonality.GetProfile(_currentPersonality);
             Color accentColor = profile.PrimaryColor;
@@ -176,15 +211,7 @@ namespace EchoProtocol.Relics
 
             float cardW = Mathf.Min(740f, screenW - 40f);
 
-            GUIStyle bodyStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 15,
-                fontStyle = FontStyle.Bold,
-                wordWrap = true,
-                alignment = TextAnchor.UpperLeft,
-                padding = new RectOffset(0, 0, 0, 0),
-                margin = new RectOffset(0, 0, 0, 0)
-            };
+            GUIStyle bodyStyle = s_bodyStyle;
 
             // Pre-calculate needed text height with generous padding to prevent vertical truncation
             float textH = bodyStyle.CalcHeight(new GUIContent(_targetLine), cardW - 44f);
@@ -208,12 +235,7 @@ namespace EchoProtocol.Relics
 
             // 3. Header title bar
             Rect headerRect = new Rect(cardX + 18f, cardY + 12f, cardW - 36f, 22f);
-            GUIStyle headerStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 13,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleLeft
-            };
+            GUIStyle headerStyle = s_headerStyle;
             headerStyle.normal.textColor = accentColor;
 
             string headerText = $"[ {profile.Name}  •  {profile.Title} ]";
@@ -246,15 +268,7 @@ namespace EchoProtocol.Relics
             float guiX = screenPos.x;
             float guiY = Screen.height - screenPos.y;
 
-            GUIStyle textStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 13,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-                wordWrap = true,
-                padding = new RectOffset(0, 0, 0, 0),
-                margin = new RectOffset(0, 0, 0, 0)
-            };
+            GUIStyle textStyle = s_bubbleStyle;
             textStyle.normal.textColor = new Color(1f, 1f, 1f, _fadeAlpha);
 
             // Generous bubble width (up to 480px) so long comedy sentences wrap naturally without clipping

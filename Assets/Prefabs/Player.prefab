@@ -553,7 +553,6 @@ MonoBehaviour:
   _talkGate: 0.06
   _hangoverSeconds: 0.35
   _prerollSeconds: 0.12
-  _downsample: 2
   _packetSeconds: 0.04
   _prebufferSeconds: 0.1
   _maxBufferSeconds: 0.5
