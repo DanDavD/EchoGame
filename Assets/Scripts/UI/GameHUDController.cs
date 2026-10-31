@@ -407,6 +407,9 @@ namespace EchoProtocol.UI
             _hintText.color = new Color(1f, 0.92f, 0.6f, 0.95f);
             hintObj.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
             hintObj.SetActive(false);
+
+            // 7. Teammates' names floating above their heads (behind everything else on this canvas)
+            gameObject.AddComponent<NameTagOverlay>().Initialise((RectTransform)transform, defaultFont);
         }
 
         private void Update()

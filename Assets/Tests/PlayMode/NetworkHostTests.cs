@@ -309,6 +309,23 @@ namespace EchoProtocol.Tests
         }
 
         [UnityTest]
+        public IEnumerator Host_ReplicatesTheCleanedUpName_AndNeverTagsYourself()
+        {
+            EchoProtocol.Player.PlayerName.LocalNameProvider = () => "  <b>Daniel</b>   Dev ";
+            yield return HostAndWaitForPlayer();
+
+            PlayerController player = NetTestUtil.FindLocalPlayer();
+            var name = player.GetComponent<EchoProtocol.Player.PlayerName>();
+            Assert.IsNotNull(name, "every spawned player has a name");
+            yield return NetTestUtil.WaitUntil(() => name.DisplayName == "Daniel Dev", "the server to clean up and replicate the name");
+
+            var overlay = Object.FindAnyObjectByType<EchoProtocol.UI.NameTagOverlay>();
+            Assert.IsNotNull(overlay, "the HUD draws name tags");
+            yield return null;
+            Assert.AreEqual(0, overlay.VisibleTags, "your own name is never drawn above your head");
+        }
+
+        [UnityTest]
         public IEnumerator Disconnect_RemovesThePlayer_AndHostingAgainWorks()
         {
             yield return HostAndWaitForPlayer();

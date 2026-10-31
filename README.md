@@ -55,6 +55,7 @@ Echo Protocol is a vertical slice (`v0.2.0`): one complete level, played from th
 - A shared team noise meter: voices fill it, silence drains it, and a full meter sends the monster and starts dramatic procedural music until the team goes silent.
 - Proximity voice chat: open-mic voice travels over the game's own network and plays from each player's body in 3D, so voices fade with distance, around corners and when a friend is dragged away. The server only relays a voice to players close enough to hear it and limits how fast one player can send. Headphones are recommended (there is no echo cancellation).
 - Players hand a carried relic to a teammate with E.
+- Floating name tags: each teammate's Steam name above their head, hidden behind walls, green while they talk.
 - Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
 - A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
 - Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs over LAN (Tugboat) and over Steam (friends-only lobbies, invites and the Steam relay), with a waiting room and multiplayer menus. LAN play is covered by automated tests; Steam needs two accounts, so I test it by hand (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
