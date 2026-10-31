@@ -38,7 +38,7 @@ Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`.
 
 ## Releases
 
-While this is a prototype I use loose semantic versions: `v0.1.0` (echo prototype), `v0.2.0` (enemy AI), and so on up to `v1.0.0` (Steam release).
+While the game is in development I use loose semantic versions: `v0.1.0` (first public build), `v0.2.0` (vertical slice), and so on up to `v1.0.0` (Steam release). Before tagging, I bump *Player Settings > Version* (`bundleVersion`), because Steam lobbies only accept players on the same build version.
 I tag from `main` and publish a GitHub Release with notes and a build.
 
 ## Unity-specific rules

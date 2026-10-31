@@ -1,52 +1,44 @@
 # Changelog
 
 This file lists the notable changes to the project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versions follow loose semantic versioning while the game is a prototype (see [CONTRIBUTING](CONTRIBUTING.md#releases)).
+Versions follow loose semantic versioning while the game is in development (see [CONTRIBUTING](CONTRIBUTING.md#releases)).
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-10-31
+
+The vertical slice: the full loop from the menu to the end screen and back, with stakes (shared team lives), proximity voice chat, a procedural soundscape, settings, first-match hints, and a server that validates what clients ask for. The Windows release build was checked with a host and a client over LAN.
 
 ### Added
 - **Team lives** (`MatchRules.LoseLife`, `GameExtractionManager.ReportPlayerCaught`): the team shares 3 lives. Every monster catch costs one and the catch after the last one is a defeat, so the monster matters before the escape too. Replicated as a `SyncVar`; `LifeLost` fires once per catch on every peer (the host too). The HUD shows `TEAM LIVES x/3` under the objective and a red *CAUGHT!* sting, and the defeat screen says whether the team was caught or the portal closed.
 - **First-match hints** (`FirstMatchHints`, `GameHUDController`): one line under the objective that teaches the echo (`V`), then the talking relics (`E`), then whispering on the way to the altar. Each goes away once the player has done it, and all of them after the first docked relic or 150 s.
 - **End screens: Back to menu** (`MatchMenu.Leave`, set by `LobbyMenuUI` to the session's `Leave`): every player can leave a finished match from the end screen.
-- **Tests**: `FirstMatchHintsTests`, team lives in `MatchRulesTests`, and two host tests: every catch costs a life and the last one loses (with the HUD sting and the EventSystem), and leaving a lost match then hosting again starts clean.
-- **Modern UGUI Presentation System (`MainMenuController.cs`, `GameHUDController.cs`)**:
-  - Replaced legacy `OnGUI()` boxes with responsive, anti-aliased Canvas UI featuring styled frosted panels and clear typography.
-  - **Main Menu**: Screen with Title, Mode selection (Solo Expedition, Host Steam Lobby, Join Local, Sandbox Arena), real-time Microphone VU Calibration Bar with threshold markers, and headphone usage guidance.
-  - **In-Game HUD**: Sleek objective progress card (`[X/3] Relics Secured`), pulsing extraction alert banner with time remaining, dynamic reticle interaction prompt, and carried relic status card.
-  - **Victory & Defeat Screens**: Full-canvas victory panel (Rank S+, quote, Play Again button) and defeat panel with post-mortem roasts and quick retry.
-- **Atmospheric & Monster Audio (`MonsterAudio.cs`)** (the `AmbienceAudio` drone and the controller's extra footsteps were later removed as duplicates; see *Fixed*):
-  - Catacomb ambient drone: Subterranean 42 Hz earth resonance and low cavern air drafts generated procedurally with zero external clips.
-  - Monster presence audio: Continuous raspy 3D breathing, heavy stone footsteps, and a blood-curdling roar when entering Hunt or Enraged states.
-  - Player stone footsteps: Footstep audio with procedural stone taps, pitch variance, and physical sprint noise reported to `NoiseRegistry`.
-  - Energy portal resonance: Procedural 65 Hz sub-harmonic hum loop in `EscapePortal.cs`.
-- **Sonic Climax Stun Mechanic (`EnemyBrain.cs`, `AltarReceptacle.cs`)**:
-  - Harmonic shockwave stun: Docking the 3rd relic unleashes a sonic overload that freezes the blind beast for 4.5 seconds (`EnemyBrain.StunAll`) before it awakens into its enraged 7.0 m/s sprint, giving the expedition team a fair head start to escape.
-- **Proximity Voice Zero-Allocation Optimization (`ProximityVoice.cs`, `VoiceCodec.cs`)**:
-  - Reusable pre-allocated send packet buffer in `ProximityVoice.cs` and destination buffer overload in `VoiceCodec.cs`, completely eliminating per-frame heap allocations during active voice chat.
-- **Proximity voice chat (`ProximityVoice`, `VoiceCodec`, `VoicePlaybackBuffer`)**: open-mic voice over the game's own network, so it works on a LAN (Tugboat) and over Steam with no extra service. The owner sends only while talking (voice gate, 0.35 s hangover, 0.12 s pre-roll so the first syllable is kept), downsampled to 8 kHz and mu-law encoded (about 64 kbit/s per speaker) on the unreliable channel; the server relays it to everyone else, who play it from a 3D source on the player's body (full volume within 2 m, silent at 28 m). A small jitter buffer (0.1 s pre-buffer, 0.5 s cap) hides network hiccups without letting voices lag. Talking only chats: it never lights the cave. `MicrophoneLoudness.ReadNewSamples` hands out the raw capture in fixed blocks. Added to `Player.prefab` by `ProximityVoiceSetup`. Tests for the codec, the jitter buffer, the microphone cursor, the prefab and a hosted player playing a received packet.
+- **Match HUD** (`GameHUDController`): a Canvas HUD built in code (no art assets) with the objective card (`[x/3]` relics and team lives), the pulsing extraction banner with the time left, the interaction prompt under the crosshair (including passing the carried relic to the teammate in view), the carried-relic card and full-screen victory and defeat screens with *Play again* and *Back to menu*.
+- **Sonic climax stun** (`EnemyBrain.StunAll`, `AltarReceptacle`): docking the third relic stuns the monster for 4.5 s before it wakes up enraged (7 m/s), so the team gets a fair head start to the portal.
+- **Portal hum** (`EscapePortal`): a procedural 65 Hz hum while the exit is open, so players can find it by ear.
+- **Proximity voice chat** (`ProximityVoice`, `VoiceCodec`, `VoicePlaybackBuffer`, `VoiceRelay`): open-mic voice over the game's own network, so it works on a LAN (Tugboat) and over Steam with no extra service. The owner sends only while talking (voice gate, 0.35 s hangover, 0.12 s pre-roll so the first syllable is kept), at 8 kHz mu-law (about 64 kbit/s per speaker) on the unreliable channel, with no allocations per packet. The server relays each packet only to players within hearing range (28 m plus 4 m of slack for network delay) and drops packets from a speaker who sends far more than talking needs (`PacketRateLimiter`, a token bucket). Listeners play it from a 3D source on the speaker's body (full volume within 2 m, silent at 28 m) through a jitter buffer (0.1 s pre-buffer, 0.5 s cap). Talking only chats: it never lights the cave. Added to `Player.prefab` by `ProximityVoiceSetup`.
 - **Cave ambience** (`CaveAmbience.cs`): a low room tone that never stops, water drips placed in 3D around the listener, and a distant rumble of rock every 35 to 80 s. It starts by itself, follows the active `AudioListener` and is kept quiet, so speakers do not feed it back into the microphone.
 - **Monster sounds** (`MonsterAudio.cs`): a breath that gets faster and louder as the monster moves, heavy steps, and a roar when it starts to hunt (`MovementSounds.RoarTrigger`: after a calm spell, once per hunt, with an 8 s cooldown). Driven by its movement speed, like `MonsterVisual`, so every peer hears the same thing.
+- **Monster growls** (`MonsterAudio.cs`, `ProceduralAudio.MonsterGrowl`): a low growl every 5 to 10 s (twice as often while it hunts), so players always have a hint of where it is. Its breath, steps and growls now carry up to 60 m, and footsteps up to 30 m.
 - **Footsteps** (`FootstepAudio.cs`): soft steps when walking, faster and louder when sprinting, silent in the air and while ragdolling, in 3D, so you hear where your teammates are.
+- **Sound through walls** (`SoundOcclusion.cs`): the monster's sounds and players' footsteps come out muffled when walls stand between them and the listener (a low-pass filter: clear in the open, dull behind one wall, a distant thud behind two), so you can tell by ear whether something is in your corridor or in the next room. Only level geometry counts; players, relics and the sound's own body never muffle it.
 - **`ProceduralAudio`**: every sound above is generated at runtime from maths, with fixed seeds and no audio files, and cached. All of it is cosmetic: the monster and the team noise meter do not hear it.
-- **Tests**: `ProceduralAudioTests` (no clipping, never silent, a seamless room-tone loop, deterministic), `MovementSoundsTests` (step pace and volume, one roar per hunt) and `GameAudioTests` (the ambience starts by itself, walking plays footsteps).
 - **Settings** (`GameSettings.cs`, `SettingsManager.cs`, `SettingsPanel.cs`): master volume, ambience and music volume, mouse sensitivity, invert mouse Y, microphone device, echo sensitivity and full screen, with a live microphone test bar. Changes apply at once (`SettingsManager.Changed`) and are saved to `PlayerPrefs` when the screen closes. Values are clamped, and a saved microphone that is unplugged falls back to the system default. Reachable from the main menu and from the match menu.
 - **Match menu** (`MatchMenu.cs`, `LobbyMenuUI.cs`): `Esc` during a match opens a menu with *Resume*, *Settings*, *Controls* and *Leave Match*, drawn above every HUD. `Esc` goes back from a sub-page and closes the main page. While it is open the local player stands still and cannot echo, sprint, jump or interact; the match keeps running for everyone else. The offline sandbox keeps the old behaviour (`Esc` only frees the cursor).
 - **Main menu**: *Settings* and *Quit* buttons.
-- **Tests**: `GameSettingsTests` (defaults, clamping, save and load, microphone choice, applying, migrating old saves), `MatchMenuTests` (`Esc` and the pages, the slider maths) and `SettingsAndAmbienceTests` (the ambience's spare listener, the settings screen's test microphone).
-- **Sound through walls** (`SoundOcclusion.cs`): the monster's sounds and players' footsteps come out muffled when walls stand between them and the listener (a low-pass filter: clear in the open, dull behind one wall, a distant thud behind two), so you can tell by ear whether something is in your corridor or in the next room. Only level geometry counts; players, relics and the sound's own body never muffle it.
-- **Monster growls** (`MonsterAudio.cs`, `ProceduralAudio.MonsterGrowl`): a low growl every 5 to 10 s (twice as often while it hunts), so players always have a hint of where it is. Its breath, steps and growls now carry up to 60 m, and footsteps up to 30 m.
+- **Tests**: 208 EditMode and 39 PlayMode tests. New since 0.1.0: `ProximityVoiceTests` and `VoiceRelayTests` (codec, jitter buffer, microphone cursor, relay range, rate limiter), `FirstMatchHintsTests`, team lives in `MatchRulesTests`, `ProceduralAudioTests`, `MovementSoundsTests`, `GameSettingsTests`, `MatchMenuTests`, and PlayMode tests for the audio, the settings, a hosted player playing a received voice packet, losing every team life, and hosting again after a lost match.
 
 ### Changed
 - **Only the host restarts a networked match** (`GameExtractionManager.CanRestartHere`): clients see *Waiting for the host...* instead of restarting the match while a friend is still reading the end screen. `ServerRequestRestart` is gone.
 - **The server validates who asks** (`RelicCarryable`, `AltarReceptacle`, `GameExtractionManager`): picking up, dropping and docking a relic, and escaping, are only accepted from the client that owns that player (or carries that relic). An escape must also come from within 6 m of an open portal (`EscapePortal.IsNearOpenPortal`). The debug monster freeze (`H`) is ignored by a release server.
-- **The UGUI main menu is no longer created automatically** (`MainMenuController`): it drew over the working network menu (`LobbyMenuUI`), fought it for Esc and the cursor, and started hosts without the session, so the waiting room and Steam lobbies were skipped. The class stays for a later pass through `NetworkSession`.
 - **The carried-relic card** no longer lists the debug keys (`T`, `Y`) in release builds, and mentions passing with `E`.
 - **Microphone** (`MicrophoneLoudness.cs`): captures the device chosen in the settings, and switches device live (relearning its levels) when the setting changes.
 - **Echo sensitivity** (`EchoVisionController.cs`, `GameSettings.cs`, `Player.prefab`): comes from the settings instead of the Inspector value, and the default is 1.25: a normal voice lights about 7 m and a raised voice about 11 m. 1.6 and then 1.4 were tried first and lit far too much at a normal voice. Settings saved before this get the new default once (`GameSettings.CurrentVersion = 4`); after that the slider wins.
 - **Ambience and music volume** (`CaveAmbience.cs`, `TeamNoiseAudio.cs`): scaled by the new setting; the master volume is `AudioListener.volume`.
+- **Relic subtitles** (`RelicDialogueUI`) build their GUI styles once instead of every frame.
 
 ### Fixed
+- **The relic hand-off prompt was invisible** (`GameHUDController`): `[E] Pass <relic>` only lived in an IMGUI fallback that stopped running when the Canvas HUD arrived, so players could pass relics but nothing told them so. It is back under the crosshair.
 - **End-screen buttons could not be clicked.** No `EventSystem` existed, so no Canvas button received clicks, and the locked cursor was grabbed back on every click. The HUD now creates an `EventSystem` with the Input System UI module, and the cursor stays free while the match is over.
 - **Hosting again after leaving a finished match** kept its victory or defeat, open portals and full light: the match flow resets on server start, and a client resets its portals and lighting when it leaves.
 - **Footsteps played twice**: `PlayerController` had its own step sound on top of `FootstepAudio`. It now only reports the sprint noise the monster hears.
@@ -61,6 +53,8 @@ Versions follow loose semantic versioning while the game is a prototype (see [CO
 
 ### Removed
 - **Crying relics and the human echo ritual** (`RelicTemper.cs`, `EchoRhythm.cs`, `VoiceOnsetDetector.cs`, the ritual half of `TeamNoiseDirector`, its HUD, sounds, dialogue and tests). Relics no longer cry when the carrier talks, lands them hard or keeps them too long, and there is no rhythm to repeat. In play it did not work well and distracted from the objective, which is now simply: find the three relics, dock them in the altar and escape. The team noise meter and passing a relic with `E` stay. `Assets/Scripts/Rituals` becomes `Assets/Scripts/TeamNoise` (namespace `EchoProtocol.TeamNoise`), and `docs/TEAM_NOISE_AND_RITUALS.md` becomes `docs/TEAM_NOISE.md`.
+- **Dead UI**: `MainMenuController` (a second main menu that drew over `LobbyMenuUI`, fought it for Esc and the cursor, and started hosts without the waiting room or Steam lobbies; its buttons never received clicks), the IMGUI fallback HUDs in `GameExtractionManager` and `PlayerInteraction`, and the unused `SampleScene`.
+- **`AmbienceAudio`**: a loud 42 Hz drone that played on top of `CaveAmbience` (see *Fixed*).
 
 ## [0.1.0] - 2026-10-20
 
