@@ -5,6 +5,9 @@ Versions follow loose semantic versioning while the game is in development (see 
 
 ## [Unreleased]
 
+### Added
+- **Floating name tags** (`PlayerName`, `NameTagOverlay`): every teammate's name floats above their head, like in co-op games. It is their Steam name (or *Player N* without Steam), sent once by the owner, cleaned up by the server (no rich-text tags or control characters, at most 20 characters) and replicated to every peer, including players who join later. The tag fades out from 18 to 35 m, hides behind walls so the cave stays scary, shrinks a little with distance and turns green while that player's voice is heard. Your own name is never drawn. Added to `Player.prefab` by `PlayerNameSetup`. Tests: `PlayerNameTests` and a host test for the replicated, cleaned-up name.
+
 ## [0.2.0] - 2026-10-31
 
 The vertical slice: the full loop from the menu to the end screen and back, with stakes (shared team lives), proximity voice chat, a procedural soundscape, settings, first-match hints, and a server that validates what clients ask for. The Windows release build was checked with a host and a client over LAN.

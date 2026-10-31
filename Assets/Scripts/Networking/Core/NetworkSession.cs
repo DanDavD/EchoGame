@@ -110,11 +110,15 @@ namespace EchoProtocol.Networking.Core
             _lobby.InviteAccepted += HandleInviteAccepted;
             _lobby.HostLeft += HandleHostLeft;
 
+            // Everyone sees this player's Steam name above their head (or "Player N" without Steam).
+            EchoProtocol.Player.PlayerName.LocalNameProvider = () => _lobby.LocalName;
+
             _pendingLaunchLobby = LaunchOptions.ConnectLobby(System.Environment.GetCommandLineArgs());
         }
 
         private void OnDestroy()
         {
+            EchoProtocol.Player.PlayerName.LocalNameProvider = null;
             if (_networkManager != null)
             {
                 if (_networkManager.ClientManager != null) _networkManager.ClientManager.OnClientConnectionState -= HandleClientState;
