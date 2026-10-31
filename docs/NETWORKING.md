@@ -78,11 +78,12 @@ sequenceDiagram
 | Enemy AI | **Server** | Server-authoritative `NetworkTransform` | `NavMeshAgent` and `HearingSensor` are disabled on remote clients. |
 | Ragdoll knockback | The server decides, the owner executes | Reliable `ObserversRpc` | `EnemyCatchReaction` calls `RpcTriggerRagdoll` on the victim. |
 | Echo pulses | Replicated to all peers | Quantized `SyncVar<float>` and `EchoShaderPublisher` | Up to 4 spheres at once in `EchoReveal.shader`. |
-| Relic pick-up and drop | Server | `SyncVar<NetworkObject>` for the carrier, plus a `ServerRpc` | `RelicCarryable`: the server checks the distance (5 m) and ignores relics that are already locked in the altar. |
+| Relic pick-up and drop | Server | `SyncVar<NetworkObject>` for the carrier, plus a `ServerRpc` | `RelicCarryable`: only the player's own client may pick up for that player (with empty hands), and only the carrier's client may drop or pass the relic. The server checks the distance (5 m) and ignores relics that are already locked in the altar. |
 | Relic dialogue | Server to observers | `ObserversRpc` | `RelicBrain` picks the line on the server. Clients only show it and play the voice. |
-| Altar docking | Server | `ServerRequestDock` and a replicated mask of filled sockets (`SyncVar<int>`) | `AltarReceptacle` checks the carrier, the socket, the distance (6 m) and completion. `AltarRules` holds the rules. |
-| Symphony and match flow | Server | Replicated state, countdown and end-screen quote (`SyncVar`) | `GameExtractionManager` (win, lose, restart) and `MatchRules`. A client that reaches the portal tells the server with `ServerRequestEscape`. |
-| Restart | Server | `ServerRequestRestart` then `NetworkBootstrap.ServerRespawnWorld` | The relics and the monster are despawned and spawned again, and each player gets a `TargetRpc` to move back to a spawn point. |
+| Altar docking | Server | `ServerRequestDock` and a replicated mask of filled sockets (`SyncVar<int>`) | `AltarReceptacle` checks that the caller owns the player, the carrier, the socket, the distance (6 m) and completion. `AltarRules` holds the rules. |
+| Symphony and match flow | Server | Replicated state, countdown, team lives and end-screen quote (`SyncVar`) | `GameExtractionManager` (win, lose, restart) and `MatchRules`. A client that reaches the portal tells the server with `ServerRequestEscape`; the server checks that the caller owns that player and that the player stands within 6 m of an open portal. |
+| Team lives | Server | `SyncVar<int>`, raised as `LifeLost` on every peer | Each monster catch (`EnemyCatchReaction`, server only) takes one of the team's 3 shared lives; the catch after the last one is a defeat. |
+| Restart | Host | `GameExtractionManager.RestartMatch` on the host, then `NetworkBootstrap.ServerRespawnWorld` | Only the host restarts (clients see *Waiting for the host*). The relics and the monster are despawned and spawned again, and each player gets a `TargetRpc` to move back to a spawn point. Hosting again after leaving also starts from a clean match state. |
 | Voice chat | Built-in `ProximityVoice` over Fish-Net | Unreliable RPCs: owner -> server -> everyone else | Works on Tugboat and Steam alike. 8 kHz mu-law, sent only while talking (about 64 kbit/s per speaker), played from a 3D source on the player. |
 
 ---
@@ -118,11 +119,11 @@ These are known gaps that I plan to fix in the networking pass of the release br
 - **The Spacewar AppID (480).** Every developer who tests with Spacewar shares its lobbies, so mine are recognised by their data. Accepting an invite, or *Join Game* in the friends list, while the game is closed starts Spacewar, not Echo Protocol; `+connect_lobby` only helps once the game has its own AppID. With 480, start the game first and then accept the invite.
 - **The Steam overlay** (*Shift+Tab*, and the *Invite* button) does not open in the Unity Editor. The in-game friends list works there.
 - **No late join over Steam.** When the host starts the match, the lobby closes and friends see it as in progress. They join the next match. (A LAN player who connects mid-match spawns at once.)
-- **Escaping is trusted.** The portal trigger runs on the owner's client, and the server accepts the report of a spawned player who says they reached the exit while the match is active. The server does not check their position yet.
+- **Escaping is checked loosely.** The portal trigger runs on the owner's client. The server accepts it from the player's own client when that player stands within 6 m of an open portal (slack for the position arriving late), so a modified client could still claim an escape from next to the portal.
 - **The dock range is the only altar check.** The server checks that the player carries the relic, that the socket is free and that the player is within 6 m. It does not check line of sight or the interaction cooldown.
 - **Sensing a remote carrier.** `RelicBrain` reads the carrier's sprint state from `PlayerController`, which only runs on the owner. For a remote carrier the server sees no sprint, so only the microphone and monster reactions work.
 - **Remote ragdoll state.** The server cannot tell whether a remote player is ragdolling or immune (see [Enemy AI](ENEMY_AI.md#known-limitations)).
-- **Debug keys** (`H`, `J`, `M`, `T`, `Y`, `N` and the debug ragdoll) only exist in the Editor and in Development builds. Most act locally; `N` (team noise) asks the server.
+- **Debug keys** (`H`, `J`, `M`, `T`, `Y`, `N` and the debug ragdoll) only exist in the Editor and in Development builds. Most act locally; `N` (team noise) and `H` (freeze the monster) ask the server, and a release server ignores both requests.
 - **Team noise:** a `TeamNoiseDirector` prefab is spawned by the server with the monster and the relics, when the host starts the match. It replicates the meter and the alarm through `SyncVar`s. See [Team noise and push-to-talk echo](TEAM_NOISE.md).
 
 ## 6. Testing Steam between two PCs

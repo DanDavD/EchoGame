@@ -100,9 +100,7 @@ public class PlayerController : NetworkBehaviour
     private bool _controlEnabled = true;
     private bool _ownsInputClone; // never destroy the shared asset itself, only this player's copy
 
-    private AudioSource _footstepSource;
     private float _stepDistanceAccumulator;
-    private static AudioClip s_footstepClip;
 
     private void Awake()
     {
@@ -242,6 +240,14 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
+        // The end screens need the mouse for their buttons, so a click must not grab it back.
+        var match = EchoProtocol.Extraction.GameExtractionManager.Active;
+        if (match != null && EchoProtocol.Extraction.MatchRules.IsResolved(match.State))
+        {
+            if (Cursor.lockState == CursorLockMode.Locked) SetCursorLocked(false);
+            return;
+        }
+
         bool click = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
         if (click && !EchoProtocol.UI.MatchMenu.IsOpen && !EchoProtocol.UI.EchoGui.PointerOverPanel) SetCursorLocked(true);
     }
@@ -292,75 +298,27 @@ public class PlayerController : NetworkBehaviour
         Vector3 velocity = _horizontalVelocity + Vector3.up * _verticalVelocity;
         _controller.Move(velocity * dt);
 
-        HandleFootsteps(grounded, dt);
+        HandleSprintNoise(grounded, dt);
     }
 
-    private void HandleFootsteps(bool grounded, float dt)
+    // The step sound itself is FootstepAudio's (every peer hears it). This only reports the gameplay noise: sprinting on
+    // stone makes a burst the blind monster can hear, once per stride.
+    private void HandleSprintNoise(bool grounded, float dt)
     {
-        if (!grounded || _horizontalVelocity.sqrMagnitude < 0.25f)
+        bool sprinting = _sprintAction != null && _sprintAction.IsPressed();
+        if (!grounded || !sprinting || _horizontalVelocity.sqrMagnitude < 0.25f)
         {
             _stepDistanceAccumulator = 0f;
             return;
         }
 
-        bool sprinting = _sprintAction != null && _sprintAction.IsPressed();
-        float stepStride = sprinting ? 1.6f : 2.1f;
         _stepDistanceAccumulator += _horizontalVelocity.magnitude * dt;
+        if (_stepDistanceAccumulator < 1.6f) return;
 
-        if (_stepDistanceAccumulator >= stepStride)
-        {
-            _stepDistanceAccumulator = 0f;
-            PlayFootstep(sprinting);
-        }
-    }
-
-    private void PlayFootstep(bool sprinting)
-    {
-        if (_footstepSource == null)
-        {
-            _footstepSource = gameObject.AddComponent<AudioSource>();
-            _footstepSource.spatialBlend = 1f;
-            _footstepSource.minDistance = 1.5f;
-            _footstepSource.maxDistance = 18f;
-            _footstepSource.playOnAwake = false;
-        }
-
-        if (s_footstepClip == null)
-        {
-            s_footstepClip = GenerateFootstepClip();
-        }
-
-        float volume = sprinting ? 0.38f : 0.18f;
-        _footstepSource.pitch = Random.Range(0.92f, 1.08f) * (sprinting ? 1.1f : 1.0f);
-        _footstepSource.PlayOneShot(s_footstepClip, volume);
-
-        // Sprinting on stone floor makes physical noise that alerts the blind monster
-        if (sprinting)
-        {
-            var burst = GetComponent<NoiseBurstEmitter>();
-            if (burst == null) burst = gameObject.AddComponent<NoiseBurstEmitter>();
-            burst.Trigger(0.42f, 0.45f);
-        }
-    }
-
-    private static AudioClip GenerateFootstepClip()
-    {
-        const int sampleRate = 44100;
-        float duration = 0.08f;
-        int count = Mathf.RoundToInt(sampleRate * duration);
-        var samples = new float[count];
-
-        for (int i = 0; i < count; i++)
-        {
-            float t = (float)i / sampleRate;
-            float tap = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(160f, 65f, t / duration) * t);
-            float decay = Mathf.Exp(-t * 60f);
-            samples[i] = tap * decay * 0.7f;
-        }
-
-        var clip = AudioClip.Create("PlayerFootstep", count, 1, sampleRate, false);
-        clip.SetData(samples, 0);
-        return clip;
+        _stepDistanceAccumulator = 0f;
+        var burst = GetComponent<NoiseBurstEmitter>();
+        if (burst == null) burst = gameObject.AddComponent<NoiseBurstEmitter>();
+        burst.Trigger(0.42f, 0.45f);
     }
 
     /// <summary>

@@ -55,14 +55,22 @@ public class EnemyCatchReaction : MonoBehaviour
 
         var pc = victim.GetComponentInParent<PlayerController>();
         if (pc == null) pc = victim.GetComponentInChildren<PlayerController>();
+        bool caught = false;
         if (pc != null && pc.IsSpawned)
         {
             pc.RpcTriggerRagdoll(launch);
-            _brain.Stun(_stunSeconds);
+            caught = true;
         }
         else if (ragdoll.TryRagdoll(launch))
         {
-            _brain.Stun(_stunSeconds);
+            caught = true;
         }
+        if (!caught) return;
+
+        _brain.Stun(_stunSeconds);
+
+        // Every catch costs the team one shared life; the match flow ends it after the last one.
+        var match = EchoProtocol.Extraction.GameExtractionManager.Instance;
+        if (match != null) match.ReportPlayerCaught();
     }
 }

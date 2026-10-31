@@ -6,12 +6,16 @@ Versions follow loose semantic versioning while the game is a prototype (see [CO
 ## [Unreleased]
 
 ### Added
+- **Team lives** (`MatchRules.LoseLife`, `GameExtractionManager.ReportPlayerCaught`): the team shares 3 lives. Every monster catch costs one and the catch after the last one is a defeat, so the monster matters before the escape too. Replicated as a `SyncVar`; `LifeLost` fires once per catch on every peer (the host too). The HUD shows `TEAM LIVES x/3` under the objective and a red *CAUGHT!* sting, and the defeat screen says whether the team was caught or the portal closed.
+- **First-match hints** (`FirstMatchHints`, `GameHUDController`): one line under the objective that teaches the echo (`V`), then the talking relics (`E`), then whispering on the way to the altar. Each goes away once the player has done it, and all of them after the first docked relic or 150 s.
+- **End screens: Back to menu** (`MatchMenu.Leave`, set by `LobbyMenuUI` to the session's `Leave`): every player can leave a finished match from the end screen.
+- **Tests**: `FirstMatchHintsTests`, team lives in `MatchRulesTests`, and two host tests: every catch costs a life and the last one loses (with the HUD sting and the EventSystem), and leaving a lost match then hosting again starts clean.
 - **Modern UGUI Presentation System (`MainMenuController.cs`, `GameHUDController.cs`)**:
   - Replaced legacy `OnGUI()` boxes with responsive, anti-aliased Canvas UI featuring styled frosted panels and clear typography.
   - **Main Menu**: Screen with Title, Mode selection (Solo Expedition, Host Steam Lobby, Join Local, Sandbox Arena), real-time Microphone VU Calibration Bar with threshold markers, and headphone usage guidance.
   - **In-Game HUD**: Sleek objective progress card (`[X/3] Relics Secured`), pulsing extraction alert banner with time remaining, dynamic reticle interaction prompt, and carried relic status card.
   - **Victory & Defeat Screens**: Full-canvas victory panel (Rank S+, quote, Play Again button) and defeat panel with post-mortem roasts and quick retry.
-- **Atmospheric & Monster Audio (`AmbienceAudio.cs`, `MonsterAudio.cs`, `PlayerController.cs`)**:
+- **Atmospheric & Monster Audio (`MonsterAudio.cs`)** (the `AmbienceAudio` drone and the controller's extra footsteps were later removed as duplicates; see *Fixed*):
   - Catacomb ambient drone: Subterranean 42 Hz earth resonance and low cavern air drafts generated procedurally with zero external clips.
   - Monster presence audio: Continuous raspy 3D breathing, heavy stone footsteps, and a blood-curdling roar when entering Hunt or Enraged states.
   - Player stone footsteps: Footstep audio with procedural stone taps, pitch variance, and physical sprint noise reported to `NoiseRegistry`.
@@ -34,11 +38,21 @@ Versions follow loose semantic versioning while the game is a prototype (see [CO
 - **Monster growls** (`MonsterAudio.cs`, `ProceduralAudio.MonsterGrowl`): a low growl every 5 to 10 s (twice as often while it hunts), so players always have a hint of where it is. Its breath, steps and growls now carry up to 60 m, and footsteps up to 30 m.
 
 ### Changed
+- **Only the host restarts a networked match** (`GameExtractionManager.CanRestartHere`): clients see *Waiting for the host...* instead of restarting the match while a friend is still reading the end screen. `ServerRequestRestart` is gone.
+- **The server validates who asks** (`RelicCarryable`, `AltarReceptacle`, `GameExtractionManager`): picking up, dropping and docking a relic, and escaping, are only accepted from the client that owns that player (or carries that relic). An escape must also come from within 6 m of an open portal (`EscapePortal.IsNearOpenPortal`). The debug monster freeze (`H`) is ignored by a release server.
+- **The UGUI main menu is no longer created automatically** (`MainMenuController`): it drew over the working network menu (`LobbyMenuUI`), fought it for Esc and the cursor, and started hosts without the session, so the waiting room and Steam lobbies were skipped. The class stays for a later pass through `NetworkSession`.
+- **The carried-relic card** no longer lists the debug keys (`T`, `Y`) in release builds, and mentions passing with `E`.
 - **Microphone** (`MicrophoneLoudness.cs`): captures the device chosen in the settings, and switches device live (relearning its levels) when the setting changes.
 - **Echo sensitivity** (`EchoVisionController.cs`, `GameSettings.cs`, `Player.prefab`): comes from the settings instead of the Inspector value, and the default is 1.25: a normal voice lights about 7 m and a raised voice about 11 m. 1.6 and then 1.4 were tried first and lit far too much at a normal voice. Settings saved before this get the new default once (`GameSettings.CurrentVersion = 4`); after that the slider wins.
 - **Ambience and music volume** (`CaveAmbience.cs`, `TeamNoiseAudio.cs`): scaled by the new setting; the master volume is `AudioListener.volume`.
 
 ### Fixed
+- **End-screen buttons could not be clicked.** No `EventSystem` existed, so no Canvas button received clicks, and the locked cursor was grabbed back on every click. The HUD now creates an `EventSystem` with the Input System UI module, and the cursor stays free while the match is over.
+- **Hosting again after leaving a finished match** kept its victory or defeat, open portals and full light: the match flow resets on server start, and a client resets its portals and lighting when it leaves.
+- **Footsteps played twice**: `PlayerController` had its own step sound on top of `FootstepAudio`. It now only reports the sprint noise the monster hears.
+- **Two ambience drones**: `AmbienceAudio` (removed) played a loud 42 Hz loop on top of `CaveAmbience`, ignored the ambience volume setting and could leak into the microphone.
+- **The HUD searched the scene for the altar every frame**; it keeps the reference now.
+- **The HUD disappeared after an offline restart**: it is created once per launch but was destroyed with the scene. It now survives scene loads, and screens that outlive the scene read the match through `GameExtractionManager.Active`, which stays null while FishNet keeps the networked match object asleep.
 - **The monster never let its victim go** (`EnemyBrain.cs`): after a catch it gloated for 3 s, heard its victim's landing thud, walked back to them and caught them again the moment their grace time ended, in a loop with no way out. After the gloat it now becomes sated for 7 s: it walks about 14 m away from the victim, hears nothing and catches nobody, then hunts as usual. Covered by `SandboxOfflineTests.AfterACatch_TheMonsterWalksAway_AndLeavesItsVictimAlone`.
 - **Hundreds of Input System errors after a few Plays** (`PlayerController.cs`): every player enables its own copy of the input asset and never disabled or destroyed it. With domain reload off (Enter Play Mode Options), the dead copy outlived its player and every key press (V first) threw `Map index out of range` and `NullReferenceException` in `InputActionState`. The copy is now disabled and destroyed with its player. Covered by `SandboxOfflineTests.DestroyingAPlayer_DisablesAndDestroysItsInputCopy`.
 - **No audio listener in the menus** (`CaveAmbience.cs`): `Dungeon_Main` has no camera until a player spawns, so the menus were silent and Unity warned about a missing listener every frame. The ambience now carries a spare `AudioListener` that switches on only while no other listener is active (checked in `LateUpdate`, so two are never on together).

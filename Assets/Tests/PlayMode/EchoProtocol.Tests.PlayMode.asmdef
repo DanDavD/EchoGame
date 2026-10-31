@@ -6,7 +6,8 @@
         "EchoProtocol.Core",
         "EchoProtocol.Networking",
         "Unity.AI.Navigation",
-        "FishNet.Runtime"
+        "FishNet.Runtime",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

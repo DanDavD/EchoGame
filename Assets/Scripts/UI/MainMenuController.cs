@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
-using EchoProtocol.Audio;
 
 namespace EchoProtocol.UI
 {
@@ -54,15 +53,10 @@ namespace EchoProtocol.UI
         private bool _isOpen = true;
         private Sprite _roundedBoxSprite;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AutoEnsureMenu()
-        {
-            if (FindAnyObjectByType<MainMenuController>() == null)
-            {
-                var go = new GameObject("UGUI_MainMenu");
-                go.AddComponent<MainMenuController>();
-            }
-        }
+        // Not created automatically any more. The network menu (LobbyMenuUI) is the main menu: it owns the waiting room,
+        // Steam lobbies, errors and the match menu, while this screen started hosts behind the session's back, drew over
+        // that menu and fought it for Esc and the cursor. Add this component to a scene by hand to bring it back once it
+        // goes through NetworkSession.
 
         private void Awake()
         {

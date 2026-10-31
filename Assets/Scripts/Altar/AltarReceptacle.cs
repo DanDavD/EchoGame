@@ -204,9 +204,11 @@ namespace EchoProtocol.Altar
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void ServerRequestDock(NetworkObject relicNetObj, NetworkObject playerNetObj, int socketIndex)
+        private void ServerRequestDock(NetworkObject relicNetObj, NetworkObject playerNetObj, int socketIndex, FishNet.Connection.NetworkConnection caller = null)
         {
             if (relicNetObj == null || playerNetObj == null) return;
+            // Only the player's own client may dock the relic that player carries.
+            if (caller != null && playerNetObj.Owner != caller) return;
             if (socketIndex < 0 || socketIndex >= _sockets.Count || _sockets[socketIndex] == null) return;
 
             RelicCarryable relic = relicNetObj.GetComponent<RelicCarryable>();

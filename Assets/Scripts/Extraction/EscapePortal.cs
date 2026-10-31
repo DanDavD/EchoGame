@@ -118,6 +118,24 @@ namespace EchoProtocol.Extraction
         }
 
         /// <summary>
+        /// True when <paramref name="position"/> is within <paramref name="slack"/> metres of an open portal's trigger.
+        /// The server uses it to check a client that says it escaped.
+        /// </summary>
+        public static bool IsNearOpenPortal(Vector3 position, float slack)
+        {
+            float sqrSlack = slack * slack;
+            for (int i = 0; i < AllPortals.Count; i++)
+            {
+                EscapePortal portal = AllPortals[i];
+                if (portal == null || !portal.IsActive) continue;
+
+                Vector3 closest = portal._portalTrigger != null ? portal._portalTrigger.ClosestPoint(position) : portal.transform.position;
+                if ((closest - position).sqrMagnitude <= sqrSlack) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Deactivates all existing escape portals in the scene.
         /// </summary>
         public static void DeactivateAll()
