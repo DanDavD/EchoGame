@@ -84,7 +84,7 @@ sequenceDiagram
 | Symphony and match flow | Server | Replicated state, countdown, team lives and end-screen quote (`SyncVar`) | `GameExtractionManager` (win, lose, restart) and `MatchRules`. A client that reaches the portal tells the server with `ServerRequestEscape`; the server checks that the caller owns that player and that the player stands within 6 m of an open portal. |
 | Team lives | Server | `SyncVar<int>`, raised as `LifeLost` on every peer | Each monster catch (`EnemyCatchReaction`, server only) takes one of the team's 3 shared lives; the catch after the last one is a defeat. |
 | Restart | Host | `GameExtractionManager.RestartMatch` on the host, then `NetworkBootstrap.ServerRespawnWorld` | Only the host restarts (clients see *Waiting for the host*). The relics and the monster are despawned and spawned again, and each player gets a `TargetRpc` to move back to a spawn point. Hosting again after leaving also starts from a clean match state. |
-| Voice chat | Built-in `ProximityVoice` over Fish-Net | Unreliable RPCs: owner -> server -> everyone else | Works on Tugboat and Steam alike. 8 kHz mu-law, sent only while talking (about 64 kbit/s per speaker), played from a 3D source on the player. |
+| Voice chat | Built-in `ProximityVoice` over Fish-Net | Unreliable `ServerRpc` from the owner, then a `TargetRpc` per listener | Works on Tugboat and Steam alike. 8 kHz mu-law, sent only while talking (about 64 kbit/s per speaker), played from a 3D source on the player. The server relays a packet only to players within hearing range (28 m plus 4 m of slack, `VoiceRelay.InRange`) and drops a speaker's packets beyond 1.5 times the talking rate (`PacketRateLimiter`). |
 
 ---
 
@@ -113,7 +113,11 @@ If a scene has no `NetworkManager` (today only `Sandbox_Test`), `OfflineSandboxG
 
 ## 5. Current limitations
 
-These are known gaps that I plan to fix in the networking pass of the release branch:
+These are known gaps. The first three are design decisions for the vertical slice; the rest I plan to fix in the networking pass of the release branch:
+
+- **No host migration.** The host is the server. If the host leaves, every client gets *The host left the match.* and returns to the menu.
+- **No reconnect into the same avatar.** A dropped player's avatar is despawned and a relic they carried falls where they were. Reconnecting gives a new avatar at a spawn point (on LAN) or waits for the next match (on Steam).
+- **No browser build.** Browsers cannot open UDP sockets or act as a host, and Unity's `Microphone` does not exist in WebGL, so co-op would need a dedicated WebSocket server and a JavaScript microphone bridge.
 
 - **Steam is tested by hand.** The automated tests cover local play, the waiting room, the session flow and the lobby rules. Lobbies, invites and the Steam relay need two Steam accounts on two PCs (see the next section).
 - **The Spacewar AppID (480).** Every developer who tests with Spacewar shares its lobbies, so mine are recognised by their data. Accepting an invite, or *Join Game* in the friends list, while the game is closed starts Spacewar, not Echo Protocol; `+connect_lobby` only helps once the game has its own AppID. With 480, start the game first and then accept the invite.
