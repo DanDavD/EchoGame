@@ -215,7 +215,7 @@ namespace EchoProtocol.UI
             _interactPromptRoot.transform.SetParent(transform, false);
             var promptRect = _interactPromptRoot.AddComponent<RectTransform>();
             promptRect.anchoredPosition = new Vector2(0, -65);
-            promptRect.sizeDelta = new Vector2(280, 38);
+            promptRect.sizeDelta = new Vector2(420, 38);
             _interactPromptBg = _interactPromptRoot.AddComponent<Image>();
             _interactPromptBg.sprite = _panelSprite;
             _interactPromptBg.type = Image.Type.Sliced;
@@ -534,9 +534,15 @@ namespace EchoProtocol.UI
             var pi = localPlayer.GetComponent<PlayerInteraction>();
             if (pi == null) return;
 
-            // Prompt
+            // Prompt: handing the carried relic to the teammate in view wins over anything else under the crosshair.
             var interactable = pi.HoveredInteractable;
-            if (interactable != null && interactable.CanInteract(localPlayer))
+            if (pi.CarriedRelic != null && pi.HoveredTeammate != null)
+            {
+                bool canPass = pi.CarriedRelic.CanPassTo(localPlayer, pi.HoveredTeammate);
+                _interactPromptRoot.SetActive(true);
+                _interactPromptText.text = canPass ? $"[E] Pass {pi.CarriedRelic.RelicName}" : "Their hands are full (or they are too far)";
+            }
+            else if (interactable != null && interactable.CanInteract(localPlayer))
             {
                 _interactPromptRoot.SetActive(true);
                 _interactPromptText.text = $"[E] {interactable.PromptText}";

@@ -12,6 +12,9 @@ namespace EchoProtocol.Voice
     /// </summary>
     public static class VoiceCodec
     {
+        /// <summary>Samples per second the voice travels at, on every peer (so a sender and a listener always agree).</summary>
+        public const int SampleRate = 8000;
+
         private const int Bias = 0x84;
         private const int Clip = 32635;
 

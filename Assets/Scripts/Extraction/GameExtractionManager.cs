@@ -20,8 +20,8 @@ namespace EchoProtocol.Extraction
     /// <summary>
     /// Manages the primary match flow: Objective -> Extraction Countdown -> Victory/Defeat.
     /// The server decides every transition and replicates the state, the countdown and the end-screen quote to the
-    /// clients. Without a network (the sandbox) the same flow runs locally. Provides HUD banners during the heist and
-    /// High on Life comedic post-game screens.
+    /// clients. Without a network (the sandbox) the same flow runs locally. GameHUDController draws its banners and end
+    /// screens.
     /// </summary>
     public class GameExtractionManager : NetworkBehaviour
     {
@@ -421,155 +421,7 @@ namespace EchoProtocol.Extraction
             if (IsSpawned && IsServerStarted) _quoteSync.Value = index;
         }
 
-        private static bool HasLocalPlayer()
-        {
-            var players = PlayerController.ActivePlayers;
-            for (int i = 0; i < players.Count; i++)
-            {
-                if (players[i] != null && players[i].IsSpawned && players[i].IsOwner) return true;
-            }
-            return false;
-        }
-
         public string ActiveVictoryQuote => VictoryQuotes[MatchRules.ClampQuote(QuoteIndex, VictoryQuotes.Length)];
         public string ActiveDefeatQuote => DefeatQuotes[MatchRules.ClampQuote(QuoteIndex, DefeatQuotes.Length)];
-
-        private void OnGUI()
-        {
-            if (FindAnyObjectByType<EchoProtocol.UI.GameHUDController>() != null) return;
-            // In a networked level the match HUD waits until this player is in the match (not in the waiting room).
-            if (IsSpawned && !HasLocalPlayer()) return;
-
-            int screenW = Screen.width;
-            int screenH = Screen.height;
-            ExtractionState state = State;
-
-            // 1. In-game HUD Banner
-            if (state == ExtractionState.ObjectiveInProgress)
-            {
-                int filled = _altar != null ? _altar.FilledSocketsCount : 0;
-                int total = _altar != null ? _altar.RequiredSocketsCount : 3;
-
-                GUI.color = new Color(0.1f, 0.1f, 0.15f, 0.85f);
-                GUI.Box(new Rect(screenW * 0.5f - 240, 18, 480, 42), GUIContent.none);
-
-                GUI.color = Color.cyan;
-                var style = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 15,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.Label(new Rect(screenW * 0.5f - 240, 18, 480, 42),
-                    $"OBJECTIVE: Place Living Relics into Central Altar [{filled}/{total}]", style);
-            }
-            else if (state == ExtractionState.ExtractionActive)
-            {
-                // Flashing red/yellow alert box
-                float flash = (Mathf.Sin(Time.time * 6f) + 1f) * 0.5f;
-                Color boxColor = Color.Lerp(new Color(0.6f, 0.1f, 0.1f, 0.9f), new Color(0.9f, 0.5f, 0.05f, 0.9f), flash);
-
-                GUI.color = boxColor;
-                GUI.Box(new Rect(screenW * 0.5f - 290, 16, 580, 60), GUIContent.none);
-
-                GUI.color = Color.white;
-                var style = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 17,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.Label(new Rect(screenW * 0.5f - 290, 20, 580, 26),
-                    $"! CRITICAL EXTRACTION: ESCAPE PORTAL OPEN ! Time: {RemainingTime:F1}s", style);
-
-                var subStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 12,
-                    fontStyle = FontStyle.Normal
-                };
-                GUI.color = Color.yellow;
-                GUI.Label(new Rect(screenW * 0.5f - 290, 46, 580, 24),
-                    "The Symphony Choir has enraged the Beast! Sprint to the North Wall Portal!", subStyle);
-            }
-            // 2. Victory End Screen
-            else if (state == ExtractionState.Victory)
-            {
-                GUI.color = new Color(0.02f, 0.08f, 0.04f, 0.92f);
-                GUI.Box(new Rect(0, 0, screenW, screenH), GUIContent.none);
-
-                GUI.color = Color.green;
-                var titleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 32,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.Label(new Rect(0, screenH * 0.28f, screenW, 50), "EXTRACTION SUCCESSFUL!", titleStyle);
-
-                var rankStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 20,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.color = Color.yellow;
-                GUI.Label(new Rect(0, screenH * 0.36f, screenW, 35), "RANK: S+ (Escaped with living symphony relics)", rankStyle);
-
-                var quoteStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 16,
-                    fontStyle = FontStyle.Italic,
-                    wordWrap = true
-                };
-                GUI.color = Color.white;
-                GUI.Label(new Rect(screenW * 0.15f, screenH * 0.44f, screenW * 0.7f, 70), ActiveVictoryQuote, quoteStyle);
-
-                if (GUI.Button(new Rect(screenW * 0.5f - 120, screenH * 0.62f, 240, 48), "PLAY AGAIN [R]"))
-                {
-                    RestartMatch();
-                }
-            }
-            // 3. Defeat End Screen
-            else if (state == ExtractionState.Defeat)
-            {
-                GUI.color = new Color(0.12f, 0.02f, 0.02f, 0.94f);
-                GUI.Box(new Rect(0, 0, screenW, screenH), GUIContent.none);
-
-                GUI.color = Color.red;
-                var titleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 32,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.Label(new Rect(0, screenH * 0.28f, screenW, 50), "EXTRACTION FAILED", titleStyle);
-
-                var rankStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 20,
-                    fontStyle = FontStyle.Bold
-                };
-                GUI.color = new Color(1f, 0.4f, 0.4f);
-                GUI.Label(new Rect(0, screenH * 0.36f, screenW, 35), "STATUS: Devoured by the Echo Beast", rankStyle);
-
-                var quoteStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 16,
-                    fontStyle = FontStyle.Italic,
-                    wordWrap = true
-                };
-                GUI.color = Color.white;
-                GUI.Label(new Rect(screenW * 0.15f, screenH * 0.44f, screenW * 0.7f, 70), ActiveDefeatQuote, quoteStyle);
-
-                if (GUI.Button(new Rect(screenW * 0.5f - 120, screenH * 0.62f, 240, 48), "TRY AGAIN [R]"))
-                {
-                    RestartMatch();
-                }
-            }
-        }
     }
 }
