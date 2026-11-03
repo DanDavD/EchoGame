@@ -1,196 +1,87 @@
 # Echo Protocol
 
-A co-op horror-comedy game where your voice is your only light.
-
-The cave is pitch black. Hold `V` and whisper, and you see a few metres. Hold `V` and scream, and the whole cavern lights up, but you also tell the blind monsters exactly where you are, because they hunt by sound.
+A co-op horror-comedy game for up to 4 players where your voice is your only light. Whisper into your microphone and you see a few metres; scream and the whole cave lights up, but the blind monsters that hunt by sound now know exactly where you are.
 
 ![Unity](https://img.shields.io/badge/Unity-6000.6-black?logo=unity)
-![Render Pipeline](https://img.shields.io/badge/URP-17.6-blue)
-![Status](https://img.shields.io/badge/status-vertical%20slice-blue)
+![URP](https://img.shields.io/badge/URP-17.6-blue)
+![Fish-Net](https://img.shields.io/badge/multiplayer-Fish--Net%20%2B%20Steam-1b2838)
+![Status](https://img.shields.io/badge/status-v0.2.0%20vertical%20slice-blue)
 
-**Play it:** download the Windows build from the [latest release](https://github.com/DanDavD/EchoGame/releases/latest), unzip it and run `EchoProtocol.exe`. You need a microphone. For online co-op, both players need Steam running and must be friends on Steam. On the same network you can also use *Host Local* and *Join IP*.
+[![Gameplay video](https://img.youtube.com/vi/14y3lMGHbK8/maxresdefault.jpg)](https://youtu.be/14y3lMGHbK8)
 
----
+**[Download for Windows](https://github.com/DanDavD/EchoGame/releases/latest)** | **[Watch the multiplayer gameplay video](https://youtu.be/14y3lMGHbK8)**
+
+You need a microphone. For online co-op both players need Steam running and must be friends on Steam; on the same network, *Host Local* and *Join IP* work without Steam.
+
+## In short
+
+- **Solo project, a complete vertical slice (`v0.2.0`)**: menu, waiting room, a full level, the end screen and back, in co-op over LAN or Steam.
+- **Voice is the core mechanic**: it lights the cave, draws the monster, fills a shared team noise meter, and carries proximity voice chat.
+- **Over 240 automated tests** (EditMode and PlayMode), including PlayMode tests that host a local server and play the level to a win.
 
 ## The idea
 
-I'm building Echo Protocol as a "friendslop" game for streamers. Instead of lots of content, I want a few simple systems that create chaotic moments on their own: accidental betrayals, panic, ragdoll falls.
-
-The echo is **push to talk**: your voice only lights the cave while you hold `V`. Talking without it is plain voice chat. It reveals nothing, but the monster and the team noise meter still hear it, just less than an echo.
+A "friendslop" game for streamers: a few simple systems that create chaotic moments on their own, like accidental betrayals, panic and ragdoll falls. The echo is push to talk: your voice only lights the cave while you hold `V`.
 
 | Holding `V`, you | The game does |
 |---|---|
-| **Stay silent** | You are blind. Nothing is revealed. |
-| **Whisper** | A small sphere of light appears around you, a few metres wide. |
-| **Talk** | A bigger sphere lights up (about 7 m at a normal speaking voice). Monsters start to investigate. |
+| **Whisper** | A small sphere of light, a few metres wide. |
+| **Talk** | A bigger sphere (about 7 m at a normal voice). Monsters investigate. |
 | **Scream** | The whole cavern is revealed, and so is your position. Monsters hunt you. |
 
-The goal is simple: find the three living relics, carry them to the altar, and escape through the portal before it closes. The team shares 3 lives: every time the monster catches someone it costs one, and the catch after the last one ends the match. On top of that, the team shares one noise meter:
+Find the three living relics, carry them to the altar and escape through the portal before it closes. The team shares 3 lives and one noise meter: fill it and the beast charges whoever made the racket.
 
-- **Team noise meter.** Every voice fills it, an echo more than chat. When it is full the beast charges at whoever made the racket, the music turns dramatic, and the alarm only ends once the whole team stays silent for a few seconds.
-- **Pass the relic.** Look at a teammate close by and press `E` to hand over the relic you carry.
+## Engineering highlights
 
-See [Team noise and push-to-talk echo](docs/TEAM_NOISE.md).
+- **Microphone to gameplay.** RMS to decibels to a 0-1 loudness with attack and release smoothing and Silent, Whisper, Talk and Scream states. It calibrates itself to each microphone's noise floor and the player's voice, so normal speech gives the same echo on any headset or room. See [Architecture](docs/ARCHITECTURE.md).
+- **A blind monster that hunts by ear.** A hearing sensor feeds an Idle, Investigate, Hunt state machine that moves on a NavMesh. See [Enemy AI](docs/ENEMY_AI.md).
+- **Server-authoritative multiplayer** with Fish-Net in client-host mode, over LAN (Tugboat) or Steam (friends-only lobbies, invites, the Steam relay). The server owns the monster, relics, altar and match flow, and validates what clients ask for: only the owner can pick up, dock or escape, and only near an open portal. See [Networking](docs/NETWORKING.md).
+- **Proximity voice chat on the game's own network.** 8 kHz mu-law on the unreliable channel, a jitter buffer, 3D playback from the speaker's body, no allocations per packet. The server only relays a voice to players within hearing range and rate-limits each speaker with a token bucket.
+- **Procedural look and sound, no art or audio files.** One URP HLSL shader draws bricks, slabs, rock, flesh and the portal, lit only by the sound that reveals them, plus post-processing and a monster animated in code. The ambience, monster, footsteps and talking relics' voices are generated at runtime, and walls muffle the sounds behind them. See [Visual design](docs/VISUAL_DESIGN.md) and [Audio design](docs/AUDIO_DESIGN.md).
+- **Data-driven level and a scripted build.** The catacombs come from a text map with a parser and a validator under test, and a one-command batch build produces the Windows release. See [Level design](docs/LEVEL_DESIGN.md).
 
 ## Screenshots
 
-The same corridor before and after the procedural look. Both were taken with the built-in photo mode (`-echo-photo`).
-
-| Before: placeholder checkerboard | After: procedural bricks, slabs, dust and post-processing |
+| Before: placeholder checkerboard | After: the procedural look |
 |---|---|
 | ![Before](docs/media/look-before-checkerboard.png) | ![After](docs/media/look-after-corridor.png) |
+| ![The blind monster](docs/media/monster-closeup.png) | ![The escape portal](docs/media/portal-open.png) |
 
-| The blind monster | The escape portal, open |
-|---|---|
-| ![Monster](docs/media/monster-closeup.png) | ![Portal](docs/media/portal-open.png) |
+## What is in the game
 
-## Current status
-
-Echo Protocol is a vertical slice (`v0.2.0`): one complete level, played from the menu through the waiting room, the match and the end screen and back, in co-op over LAN or Steam. I built it on my own with a deadline. Progress is tracked in the [roadmap](#roadmap) and the [changelog](CHANGELOG.md).
-
-**What works today:**
-- Microphone capture: RMS to decibels to a 0-1 loudness, with attack and release smoothing, Silent / Whisper / Talk / Scream states, and automatic calibration for each microphone.
-- A first-person controller that is clunky on purpose (new Input System).
-- Echo vision with push to talk (`V`): while the key is held, the loudness drives spheres of light (up to 4 players) through a URP shader that reads global shader values.
-- A shared team noise meter: voices fill it, silence drains it, and a full meter sends the monster and starts dramatic procedural music until the team goes silent.
-- Proximity voice chat: open-mic voice travels over the game's own network and plays from each player's body in 3D, so voices fade with distance, around corners and when a friend is dragged away. The server only relays a voice to players close enough to hear it and limits how fast one player can send. Headphones are recommended (there is no echo cancellation).
-- Players hand a carried relic to a teammate with E.
-- Floating name tags: each teammate's Steam name above their head, hidden behind walls, green while they talk.
-- Blind enemy AI: a hearing sensor feeds an Idle / Investigate / Hunt state machine that moves on a NavMesh.
-- A physics-driven player ragdoll (enemy catches, traps) that makes noise when it hits the ground.
-- Multiplayer with Fish-Net in client-host mode: networked players, monster, echo pulses, relics, altar and match flow. It runs over LAN (Tugboat) and over Steam (friends-only lobbies, invites and the Steam relay), with a waiting room and multiplayer menus. LAN play is covered by automated tests; Steam needs two accounts, so I test it by hand (see the [networking limitations](docs/NETWORKING.md#5-current-limitations)).
-- Living relics: carryable, talking relics with procedural voices, jokes, and reactions to the microphone, sprinting and the monster.
-- The altar, the symphony choir and the escape portal. This gives a full loop from objective to extraction to victory or defeat. The server decides it in multiplayer, and it also runs offline in the sandbox (see [networking](docs/NETWORKING.md)).
-- A catacombs level generated from a text map, with a validator and tests.
-- A procedural look with no art assets: one shader draws brick walls, stone slabs, rock, flesh and an energy portal, lit by the sound that reveals them. On top of that there is post-processing (bloom, vignette, grain), drifting dust and a monster animated in code. A photo mode (`-echo-photo`) takes reference screenshots of the level. See [Visual design](docs/VISUAL_DESIGN.md).
-- A one-click sandbox scene builder (editor tool) with a baked NavMesh and a test arena.
-- Shared team lives: every monster catch costs one of 3, and the catch after the last one ends the match.
-- First-match hints: one line under the objective that teaches the echo, then the relics, then the altar, and goes away once the team docks its first relic.
-
-**Still to do:** a retro low-resolution look. See the [roadmap](#roadmap).
-
-**Known limits, by design for this slice:**
-- If the host leaves, the match ends for everyone with a clear message (there is no host migration).
-- A player who drops cannot rejoin into their old avatar; a relic they carried falls where they were.
-- There is no browser version: co-op needs UDP or the Steam relay, and the game needs the microphone, so it ships as a Windows build.
-- Steam co-op is tested by hand with two accounts; LAN play is covered by automated tests.
-
-## Tech stack
-
-| Area | Choice |
-|---|---|
-| Engine | Unity 6 (`6000.6.5f1`) |
-| Rendering | Universal Render Pipeline (URP 17.6), custom HLSL shader |
-| Input | Unity Input System (`InputSystem_Actions.inputactions`) |
-| Networking | [Fish-Net](https://fish-networking.gitbook.io/docs/) (client-hosted P2P), FishySteamworks and Steamworks.NET |
-| Voice chat | Built-in proximity voice over Fish-Net (8 kHz mu-law, 3D audio), no extra service |
-| Language | C# |
+- Living relics with personalities, procedural voices and jokes, that react to the microphone, sprinting and the monster. Hand one to a teammate with `E`.
+- The altar, a symphony choir that stuns the monster, and an escape portal against the clock.
+- A shared team noise meter, shared team lives, a physics ragdoll for catches and traps, and Steam name tags above teammates.
+- First-match hints, a match menu, and settings for volumes, mouse, microphone device and echo sensitivity with a live test bar.
 
 ## Getting started
 
-**You need:** Unity `6000.6.5f1` (install it with Unity Hub) and a working microphone.
+You need Unity `6000.6.5f1`, Git LFS (`git lfs install` before cloning) and a microphone.
 
-1. Clone the repository. The project uses **Git LFS**, so install it first (`git lfs install`).
-2. Open the folder in Unity Hub with the exact editor version above.
-3. Open `Assets/Scenes/Dungeon_Main.unity` (the catacombs level). `Sandbox_Test.unity` is the small test arena.
-   - If `Dungeon_Main` does not exist, use the menu **Echo Protocol > Build > Dungeon Scene (Catacombs)**.
-4. Press **Play**. In the menu, click **Host Local**, then **Start Match** in the waiting room, and talk into your microphone. To test co-op, start a second instance (Multiplayer Play Mode or a build) and click **Join IP** before the host starts. In a build, `EchoProtocol.exe -echo-host` and `EchoProtocol.exe -echo-join` skip the menu and the waiting room.
+1. Open the folder in Unity Hub and open `Assets/Scenes/Dungeon_Main.unity`.
+2. Press **Play**, click **Host Local**, then **Start Match**, and talk into your microphone.
+3. For co-op, start a second instance and click **Join IP** before the host starts.
 
-**Controls:** `WASD` move, `Mouse` look, `Space` jump, `Shift` sprint, `V` (hold) echo with your voice, `E` interact / pick up / place relic / pass the relic to the teammate you look at, `G` drop relic, `Esc` match menu.
+**Controls:** `WASD` move, mouse look, `Space` jump, `Shift` sprint, `V` (hold) echo with your voice, `E` interact or pass the relic, `G` drop it, `Esc` match menu.
 
-**Menus and settings:** during a match, `Esc` opens the match menu: *Resume*, *Settings*, *Controls* and *Leave Match* (the match keeps running for everyone else, but your player stands still). `Esc` again goes back, or back to the game. *Settings* is also on the main menu, and every change applies at once and is saved when you close the screen:
-- master volume, and ambience and music volume
-- mouse sensitivity and invert mouse Y
-- microphone: which device to use, the echo sensitivity, and a live test bar (in the main menu it opens its own test microphone)
-- full screen or window
+**Build:** *Echo Protocol > Build > Windows (Release)*, or from the command line `Unity.exe -batchmode -quit -projectPath . -executeMethod EchoProtocol.EditorTools.EchoBuildPipeline.BuildWindowsRelease`. **Tests:** *Window > General > Test Runner*, or `Unity.exe -batchmode -nographics -projectPath . -runTests -testPlatform PlayMode -testResults results.xml`.
 
-**Debug keys** (Editor and Development builds only, they are removed from release builds): `N` add team noise, `R` ragdoll yourself, `H` freeze the monsters, `J` toggle full illumination, `M` mute or unmute the relics, `T` switch relic personality, `Y` force a relic roast, `F3` show or hide the debug readouts. On the end screens, `R` (or *Play again*) restarts the match; in multiplayer only the host can, and everyone has *Back to menu*.
+Microphone calibration, Steam setup and the debug keys are described in [Architecture](docs/ARCHITECTURE.md) and [Networking](docs/NETWORKING.md).
 
-**Networking:** the menu offers *Host Match* and *Join a Friend* (friends-only Steam lobbies through the Steam relay, with invites from the game or the Steam overlay) and *Host Local* / *Join IP* (UDP, works without Steam). Everyone meets in a waiting room and the host starts the match. During a match, the `Esc` menu shows the connection and *Leave Match*. Steam co-op needs two Steam accounts, so I test it by hand ([how](docs/NETWORKING.md#6-testing-steam-between-two-pcs)). All the multiplayer setup is one prefab, `Assets/Prefabs/Networking/NetworkRig.prefab`, which the level builders install and which tests guard. `steam_appid.txt` contains `480` (the Spacewar test AppID). I need to replace it with the real AppID before a release. The `-echo-no-steam` flag runs the game without touching Steam.
+## Known limits
 
-**Microphone calibration:** the game calibrates itself, so it feels the same on any headset, laptop or room. It learns the noise floor of the microphone (the floor drops at once and rises slowly, so speech is never mistaken for room noise) and how loudly you talk. Normal speech always gives the same echo, about 7 m with the default settings, whatever the hardware. A scream 26 dB above your normal voice lights the whole cavern. The learned values show in the debug bar and in the log (`[MicrophoneLoudness] Calibration`).
-- To measure the room again, right-click `MicrophoneLoudness` and choose **Calibrate Silence**, then stay quiet for 2 seconds.
-- To use fixed values, turn *Auto Calibrate* off and set *Silence Db* and *Scream Db*. The manual defaults are -55 and -12 dB.
-- To make the echo easier or harder to trigger without changing what the monster hears, change *Echo sensitivity* in the settings. 1 is the original feel, and the default 1.25 needs about 20% less noise for every radius, so a normal voice lights about 7 m.
-- To use another microphone, pick it in the settings. A device typed into `MicrophoneLoudness` in the Inspector always wins over the setting.
-
-## Building and testing
-
-- **Windows build:** use the menu **Echo Protocol > Build > Windows (Release)** (or *Development*). The output goes to `Builds/Windows/EchoProtocol.exe`, with `steam_appid.txt` copied next to it. From the command line: `Unity.exe -batchmode -quit -projectPath . -executeMethod EchoProtocol.EditorTools.EchoBuildPipeline.BuildWindowsRelease`.
-- **Tests:** open *Window > General > Test Runner*. There are 208 EditMode and 39 PlayMode tests. From the command line, run PlayMode with `-nographics` (`Unity.exe -batchmode -nographics -projectPath . -runTests -testPlatform PlayMode -testResults results.xml`): with a window, the batch run sometimes stalled right after a scene load.
-  - **EditMode** covers the pure game logic: hearing falloff, the microphone calibrator, decibels to loudness with hysteresis, push to talk, the team noise meter, match rules and team lives, the voice codec, jitter buffer and relay rules, the first-match hints, the settings and the match menu, the procedural sounds, the noise registry, relic dialogue tables, the visual setup and the dungeon map parser and validator.
-  - **PlayMode** loads `Dungeon_Main` and checks that the level can be completed: spawns, relics, NavMesh paths to every objective and a full win through the exit portal. It also hosts a local server and checks the networked flow, including the team noise alarm. It also checks the audio (ambience, footsteps, sounds muffled behind walls), that the monster walks away after a catch, that every catch costs a team life until the match is lost, and that hosting again after a lost match starts clean.
-- Debug shortcuts go through `DebugKeys`, so they only exist in the Editor and in Development builds.
-
-## Project structure
-
-```
-Assets/
-  Scripts/
-    Core/          Shared interfaces and game-wide systems (INoiseSource, NoiseRegistry, OfflineSandboxGuard, DebugKeys)
-    Audio/         Microphone capture, calibration, loudness analysis, noise emitters
-    Player/        First-person controller and interaction (E / G)
-    Echo/          Loudness to light sphere (the bridge to the shader)
-    Enemies/       Hearing sensor, Idle / Investigate / Hunt state machine, catch reaction, procedural body
-    Ragdoll/       Switching between the controller and the ragdoll
-    Interaction/   IInteractable, carryable relics, traps
-    Relics/        Relic brain, personalities, procedural voice, dialogue UI
-    TeamNoise/     Team noise director (shared meter and alarm), its HUD and music
-    Altar/         Altar receptacle and sockets (they trigger the symphony)
-    Extraction/    Escape portal and match flow (victory / defeat)
-    Level/         Text-map dungeon parser and validator, spawn points
-    Networking/    Fish-Net and Steam code (bootstrap, lobbies)
-    Visuals/       Post-processing, camera setup, dust, photo mode
-    Settings/      Player settings: values, limits, saving (PlayerPrefs) and applying them live
-    UI/            Shared IMGUI look (EchoGui), the settings screen and the in-match menu state
-    Editor/        Editor tools (dungeon and sandbox builders, Windows build)
-  Shaders/         EchoReveal URP shader
-  Art/  Audio/  Prefabs/  Scenes/  Settings/  ThirdParty/
-```
+- If the host leaves, the match ends for everyone (no host migration), and a player who drops cannot rejoin their old avatar.
+- No browser version: co-op needs UDP or the Steam relay, and the game needs the microphone.
+- Steam co-op needs two accounts, so I test it by hand between two PCs; LAN play is covered by automated tests.
 
 ## Documentation
 
-- [Architecture and design decisions](docs/ARCHITECTURE.md)
-- [Enemy AI: hearing model and state machine](docs/ENEMY_AI.md)
-- [Player ragdoll](docs/RAGDOLL.md)
-- [Networking architecture (Fish-Net and Steam)](docs/NETWORKING.md)
-- [Living relics, altar and game loop](docs/LIVING_RELICS_DESIGN.md)
-- [Team noise and push-to-talk echo](docs/TEAM_NOISE.md)
-- [Level design: the catacombs](docs/LEVEL_DESIGN.md)
-- [Visual design: shader, post-processing and photo mode](docs/VISUAL_DESIGN.md)
-- [Audio design: ambience, monster and footsteps](docs/AUDIO_DESIGN.md)
-- [Contributing and Git workflow](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
+[Architecture](docs/ARCHITECTURE.md) | [Enemy AI](docs/ENEMY_AI.md) | [Networking](docs/NETWORKING.md) | [Team noise](docs/TEAM_NOISE.md) | [Living relics](docs/LIVING_RELICS_DESIGN.md) | [Level design](docs/LEVEL_DESIGN.md) | [Visual design](docs/VISUAL_DESIGN.md) | [Audio design](docs/AUDIO_DESIGN.md) | [Ragdoll](docs/RAGDOLL.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md)
 
 ## Roadmap
 
-- [x] Project setup, folder structure, coding conventions
-- [x] Microphone loudness capture
-- [x] Automatic microphone calibration
-- [x] First-person controller
-- [x] Echo vision shader and sandbox scene
-- [x] Enemy AI: Idle, Investigate, Hunt, driven by player loudness
-- [x] Ragdoll system
-- [x] Multiplayer with Fish-Net: P2P client-host over a local transport
-- [x] Networked player: spawning, ownership, NetworkTransform
-- [x] Networked monster and multi-origin echo (up to 4 players)
-- [x] Interaction and relic carrying
-- [x] Living relics: personalities, procedural voices, noise that attracts the monster
-- [x] Altar, symphony choir and extraction portal (victory and defeat flow)
-- [x] Catacombs level generated from a text map, with spawn points and a validated, tested layout
-- [x] Networked altar and extraction loop, with one relic per shrine (the server decides docking, the symphony, win or lose, and the restart)
-- [x] Procedural look, post-processing, animated monster and photo mode
-- [x] Steam lobby code (friends-only lobbies, invites)
-- [x] Steam transport wired (Multipass), waiting room, multiplayer menus and clear connection errors
-- [x] Steam co-op verified between two PCs with two Steam accounts
-- [x] First public release (v0.1.0): Windows build on GitHub Releases
-- [ ] Retro look: low-resolution render and dithering (grain and vignette are already in)
-- [x] Cave ambience, monster sounds and footsteps (procedural, no audio files)
-- [x] Settings (volumes, mouse, microphone device and test, echo sensitivity, full screen) and an in-match menu
-- [x] Proximity voice chat over the game's own network (works on LAN and over Steam)
-- [x] First-match hints, shared team lives and a complete end-of-match flow (play again, back to menu)
-- [x] Vertical slice (v0.2.0): release build checked over LAN, voice relay culled by distance and rate-limited, dead UI removed
-
-## Author
+- [x] `v0.1.0` First public release: the voice-driven echo, the blind monster, relics, altar and portal, co-op over LAN and Steam
+- [x] `v0.2.0` Vertical slice: proximity voice chat, procedural soundscape, settings, team lives, first-match hints and a server that validates clients
+- [ ] Retro look: low-resolution render and dithering
 
 I'm Daniel ([@DanDavD](https://github.com/DanDavD)). Echo Protocol is a solo portfolio project.
